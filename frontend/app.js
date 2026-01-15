@@ -5,7 +5,7 @@ const state = {
     selectedProblems: [],
     selectedAiServices: [],
     selectedOtherServices: [],
-    selectedModel: 'anthropic.claude-3-haiku-20240307-v1:0', // Default model
+    selectedModel: 'global.anthropic.claude-haiku-4-5-20251001-v1:0', // Default model - Claude Haiku 4.5 inference profile
     formData: {
         teamName: '',
         bigIdea: '',

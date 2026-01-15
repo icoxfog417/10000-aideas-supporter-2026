@@ -52,14 +52,20 @@ export class KiroTranslatorStack extends cdk.Stack {
             },
         });
 
-        // Grant Bedrock permissions
+        // Grant Bedrock permissions (including cross-region inference profiles)
         bedrockTranslatorFunction.addToRolePolicy(
             new iam.PolicyStatement({
                 effect: iam.Effect.ALLOW,
-                actions: ["bedrock:InvokeModel"],
+                actions: [
+                    "bedrock:InvokeModel",
+                    "bedrock:InvokeModelWithResponseStream",
+                    "bedrock:GetInferenceProfile",
+                ],
                 resources: [
-                    `arn:aws:bedrock:${this.region}::foundation-model/*`,
-                    `arn:aws:bedrock:*:${this.account}:inference-profile/*`,
+                    // Foundation models in any region
+                    "arn:aws:bedrock:*::foundation-model/*",
+                    // All inference profiles (system-defined and account-owned)
+                    "arn:aws:bedrock:*:*:inference-profile/*",
                 ],
             })
         );
