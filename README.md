@@ -40,30 +40,35 @@ kiro-universe/
 
 ## Architecture
 
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────────────┐
-│   Browser   │────▶│  CloudFront │────▶│   S3 (Frontend)     │
-└─────────────┘     └──────┬──────┘     └─────────────────────┘
-                           │
-                           │ /api/*
-                           ▼
-                   ┌───────────────┐
-                   │ Lambda@Edge   │  SigV4 署名
-                   │ (us-east-1)   │
-                   └───────┬───────┘
-                           │
-                           ▼
-              ┌────────────────────────┐
-              │  Lambda Function URL   │  RESPONSE_STREAM モード
-              │  (IAM認証)             │
-              └────────────┬───────────┘
-                           │
-           ┌───────────────┴───────────────┐
-           ▼                               ▼
-┌─────────────────────┐         ┌─────────────────────┐
-│   Amazon Bedrock    │         │     DynamoDB        │
-│ (Claude Haiku 4.5)  │         │   (Analytics)       │
-└─────────────────────┘         └─────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Client
+        Browser[Browser]
+    end
+
+    subgraph AWS Cloud
+        subgraph CloudFront
+            CF[CloudFront Distribution]
+            Edge[Lambda@Edge<br/>SigV4 Signing]
+        end
+
+        subgraph Origin
+            S3[S3 Bucket<br/>Static Frontend]
+            LambdaURL[Lambda Function URL<br/>RESPONSE_STREAM]
+        end
+
+        subgraph Backend
+            Bedrock[Amazon Bedrock<br/>Claude Haiku 4.5]
+            DynamoDB[DynamoDB<br/>Analytics]
+        end
+    end
+
+    Browser -->|Static Assets| CF
+    CF -->|/| S3
+    CF -->|/api/*| Edge
+    Edge -->|SigV4 Signed Request| LambdaURL
+    LambdaURL -->|ConverseStreamCommand| Bedrock
+    LambdaURL -->|Track Events| DynamoDB
 ```
 
 ### 主要コンポーネント
@@ -153,24 +158,4 @@ curl -N -X POST https://<domain>/api/invoke \
 
 ## License
 
-MIT License
-
-Copyright (c) 2025
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+[Apache License 2.0](./LICENSE)
