@@ -176,7 +176,40 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeTextareas();
     initializeModelSelector();
     updateKiroMessage();
+    loadAnalyticsStats();
 });
+
+// ===== Load Analytics Stats =====
+async function loadAnalyticsStats() {
+    const config = window.APP_CONFIG || {};
+    if (!config.apiEndpoint) return;
+
+    const statsEndpoint = config.apiEndpoint.replace('/invoke', '/stats');
+
+    try {
+        const response = await fetch(statsEndpoint);
+        const data = await response.json();
+
+        if (data.success && data.stats) {
+            const suggestionEl = document.getElementById('suggestion-count');
+            const contestEl = document.getElementById('contest-count');
+
+            if (suggestionEl && data.stats.ai_suggestion_generated) {
+                suggestionEl.textContent = data.stats.ai_suggestion_generated.count;
+            } else if (suggestionEl) {
+                suggestionEl.textContent = '0';
+            }
+
+            if (contestEl && data.stats.contest_page_opened) {
+                contestEl.textContent = data.stats.contest_page_opened.count;
+            } else if (contestEl) {
+                contestEl.textContent = '0';
+            }
+        }
+    } catch (error) {
+        console.warn('Failed to load analytics:', error);
+    }
+}
 
 // ===== Model Selector =====
 function initializeModelSelector() {
