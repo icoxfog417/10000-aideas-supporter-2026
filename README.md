@@ -42,33 +42,24 @@ kiro-universe/
 
 ```mermaid
 flowchart TB
-    subgraph Client
-        Browser[Browser]
+    Browser[Browser]
+
+    subgraph CloudFront
+        CF[CloudFront Distribution]
+        Edge[Lambda@Edge]
     end
 
-    subgraph AWS Cloud
-        subgraph CloudFront
-            CF[CloudFront Distribution]
-            Edge[Lambda@Edge<br/>SigV4 Signing]
-        end
+    S3[S3 Bucket]
+    LambdaURL[Lambda Function URL]
+    Bedrock[Amazon Bedrock]
+    DynamoDB[DynamoDB]
 
-        subgraph Origin
-            S3[S3 Bucket<br/>Static Frontend]
-            LambdaURL[Lambda Function URL<br/>RESPONSE_STREAM]
-        end
-
-        subgraph Backend
-            Bedrock[Amazon Bedrock<br/>Claude Haiku 4.5]
-            DynamoDB[DynamoDB<br/>Analytics]
-        end
-    end
-
-    Browser -->|Static Assets| CF
-    CF -->|/| S3
+    Browser --> CF
+    CF -->|Static Assets| S3
     CF -->|/api/*| Edge
-    Edge -->|SigV4 Signed Request| LambdaURL
-    LambdaURL -->|ConverseStreamCommand| Bedrock
-    LambdaURL -->|Track Events| DynamoDB
+    Edge -->|SigV4 Sign| LambdaURL
+    LambdaURL --> Bedrock
+    LambdaURL --> DynamoDB
 ```
 
 ### 主要コンポーネント
