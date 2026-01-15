@@ -5,7 +5,7 @@ const state = {
     selectedProblems: [],
     selectedAiServices: [],
     selectedOtherServices: [],
-    selectedModel: 'amazon.nova-pro-v1:0', // Default model
+    selectedModel: 'global.anthropic.claude-haiku-4-5-20251001-v1:0', // Default model
     formData: {
         teamName: '',
         bigIdea: '',
@@ -50,12 +50,21 @@ const ideaSuggestionPrompt = `You are an expert product manager helping generate
 Selected categories: {categories}
 Selected problems to solve: {problems}
 
-Generate a creative, feasible hackathon project idea in Japanese. The idea should leverage AWS AI/ML services and be achievable within a hackathon timeframe.
+=== Available AWS AI Services (use these in your idea) ===
+- Amazon Bedrock: Fully managed service to access foundation models (Claude, Llama, etc.) via API
+- Amazon Bedrock AgentCore: Managed infrastructure for deploying, scaling, and securing AI agents in production. Handles compute, memory, authentication, and observability automatically.
+- Kiro: AI-powered IDE by AWS that uses "specs" (natural language requirements, design docs, task lists) to guide development. Combines AI code generation with structured specifications.
+- Amazon Nova: AWS's own foundation model family offering text, image, and video generation capabilities with excellent cost-performance ratio
+- Amazon SageMaker: Complete ML platform for building, training, and deploying custom machine learning models
+- Strands Agents SDK: Open-source Python SDK for building AI agents. Simple model-agnostic approach with tools, conversation history, and agent loops.
+
+Generate a creative, feasible hackathon project idea in Japanese. The idea should leverage these AWS AI services and be achievable within a hackathon timeframe.
 
 CRITICAL RULES:
 - Do NOT use bullet points (・, -, *) anywhere in your response
 - Write in flowing paragraph style for all sections
 - Be specific and concrete, not generic
+- Actively incorporate the newer AWS AI services (AgentCore, Kiro, Nova, Strands) where appropriate
 
 Output format (in Japanese, with these exact section headers):
 
@@ -73,7 +82,7 @@ Output format (in Japanese, with these exact section headers):
 実装計画:
 [Create an agile sprint plan with 3-4 sprints. For each sprint, describe what working increment will be delivered. Format as: 「Sprint 1: ○○を実装し動作確認。Sprint 2: ○○機能を追加しエンドツーエンドで動作。Sprint 3: ○○を改善しユーザーテスト実施。」Write as connected text, not bullet points.]
 
-使用AWSサービス: [comma-separated list of AWS services]
+使用AWSサービス: [comma-separated list of AWS services from the available services above]
 
 Only output in this exact format, no other explanations or bullet points.`;
 
@@ -533,6 +542,7 @@ async function translateAndComplete() {
 
     try {
         const fields = [
+            { key: 'teamName', elementId: 'team-name', limit: 100 },
             { key: 'bigIdea', elementId: 'big-idea', limit: 500 },
             { key: 'vision', elementId: 'vision', limit: 1000 },
             { key: 'impact', elementId: 'impact', limit: 1000 },
@@ -547,7 +557,6 @@ async function translateAndComplete() {
             }
         }
 
-        state.translatedData.teamName = document.getElementById('team-name')?.value?.trim() || '';
         state.translatedData.aiServices = state.selectedAiServices.join(', ');
         state.translatedData.otherServices = state.selectedOtherServices.join(', ');
 
