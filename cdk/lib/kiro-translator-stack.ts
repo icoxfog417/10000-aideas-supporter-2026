@@ -110,7 +110,7 @@ export class KiroTranslatorStack extends cdk.Stack {
             authType: lambda.FunctionUrlAuthType.AWS_IAM,
             cors: {
                 allowedOrigins: ["*"],
-                allowedMethods: [lambda.HttpMethod.POST, lambda.HttpMethod.OPTIONS],
+                allowedMethods: [lambda.HttpMethod.POST],
                 allowedHeaders: [
                     "Content-Type",
                     "Authorization",
