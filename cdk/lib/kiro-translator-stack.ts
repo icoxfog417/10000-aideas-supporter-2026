@@ -6,6 +6,7 @@ import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as s3deploy from "aws-cdk-lib/aws-s3-deployment";
 import * as cr from "aws-cdk-lib/custom-resources";
+import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import { Construct } from "constructs";
 import * as path from "path";
 
@@ -29,6 +30,16 @@ export class KiroTranslatorStack extends cdk.Stack {
         });
 
         // ========================================
+        // DynamoDB Table for Analytics
+        // ========================================
+        const analyticsTable = new dynamodb.Table(this, "AnalyticsTable", {
+            tableName: "kiro-translator-analytics",
+            partitionKey: { name: "eventType", type: dynamodb.AttributeType.STRING },
+            billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+            removalPolicy: cdk.RemovalPolicy.DESTROY,
+        });
+
+        // ========================================
         // CloudFront Origin Access Control
         // ========================================
         const oac = new cloudfront.S3OriginAccessControl(this, "OAC", {
@@ -49,8 +60,12 @@ export class KiroTranslatorStack extends cdk.Stack {
             architecture: lambda.Architecture.ARM_64,
             environment: {
                 AWS_NODEJS_CONNECTION_REUSE_ENABLED: "1",
+                ANALYTICS_TABLE_NAME: analyticsTable.tableName,
             },
         });
+
+        // Grant DynamoDB permissions
+        analyticsTable.grantReadWriteData(bedrockTranslatorFunction);
 
         // Grant Bedrock permissions (including cross-region inference profiles)
         bedrockTranslatorFunction.addToRolePolicy(
@@ -286,6 +301,11 @@ window.APP_CONFIG = {
         new cdk.CfnOutput(this, "Region", {
             value: this.region,
             description: "AWS Region",
+        });
+
+        new cdk.CfnOutput(this, "AnalyticsTableName", {
+            value: analyticsTable.tableName,
+            description: "DynamoDB Analytics Table Name",
         });
     }
 }

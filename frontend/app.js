@@ -432,6 +432,9 @@ async function generateAiSuggestion() {
             suggestionContent.textContent += chunk;
         });
 
+        // Track successful AI suggestion generation
+        trackEvent('ai_suggestion_generated');
+
         showToast('アイデアを生成しました！');
 
     } catch (error) {
@@ -756,6 +759,33 @@ async function callBedrockAPIStreaming(prompt, onChunk) {
         }
         throw error;
     }
+}
+
+// ===== Analytics Tracking =====
+async function trackEvent(eventType) {
+    const config = window.APP_CONFIG || {};
+    if (!config.apiEndpoint) return;
+
+    // Replace /invoke with /track in the endpoint
+    const trackEndpoint = config.apiEndpoint.replace('/invoke', '/track');
+
+    try {
+        await fetch(trackEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ eventType }),
+        });
+    } catch (error) {
+        // Silently fail - analytics should not affect user experience
+        console.warn('Analytics tracking failed:', error);
+    }
+}
+
+function openContestPage() {
+    // Track the event
+    trackEvent('contest_page_opened');
+    // Open the contest page
+    window.open('https://builder.aws.com/connect/events/10000aideas', '_blank');
 }
 
 // ===== Results =====

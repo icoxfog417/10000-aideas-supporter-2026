@@ -4,8 +4,9 @@
  * This function acts as a proxy for Amazon Bedrock API calls.
  * It uses the Converse API for unified model interface.
  * Supports both regular and streaming responses.
+ * Also handles analytics event tracking.
  *
- * Required IAM permissions: bedrock:InvokeModel, bedrock:InvokeModelWithResponseStream
+ * Required IAM permissions: bedrock:InvokeModel, bedrock:InvokeModelWithResponseStream, dynamodb:UpdateItem, dynamodb:Scan
  */
 
 const {
@@ -14,10 +15,22 @@ const {
     ConverseStreamCommand,
 } = require("@aws-sdk/client-bedrock-runtime");
 
-// Initialize Bedrock client (uses Lambda's IAM role)
-const client = new BedrockRuntimeClient({
+const {
+    DynamoDBClient,
+    UpdateItemCommand,
+    ScanCommand,
+} = require("@aws-sdk/client-dynamodb");
+
+// Initialize clients (uses Lambda's IAM role)
+const bedrockClient = new BedrockRuntimeClient({
     region: process.env.AWS_REGION || "us-east-1",
 });
+
+const dynamoClient = new DynamoDBClient({
+    region: process.env.AWS_REGION || "us-east-1",
+});
+
+const ANALYTICS_TABLE = process.env.ANALYTICS_TABLE_NAME;
 
 // CORS headers for browser requests
 const corsHeaders = {
@@ -45,7 +58,7 @@ const handleRegularRequest = async (modelId, message) => {
         },
     });
 
-    const response = await client.send(command);
+    const response = await bedrockClient.send(command);
     const outputText = response.output?.message?.content?.[0]?.text || "";
 
     return {
@@ -77,7 +90,7 @@ const handleStreamingRequest = async (modelId, message) => {
         },
     });
 
-    const response = await client.send(command);
+    const response = await bedrockClient.send(command);
 
     // Collect all text chunks
     let fullText = "";
@@ -107,6 +120,61 @@ const handleStreamingRequest = async (modelId, message) => {
     };
 };
 
+// Analytics: Track event (increment counter)
+const trackEvent = async (eventType) => {
+    if (!ANALYTICS_TABLE) {
+        console.warn("ANALYTICS_TABLE_NAME not configured");
+        return { success: false, error: "Analytics not configured" };
+    }
+
+    const command = new UpdateItemCommand({
+        TableName: ANALYTICS_TABLE,
+        Key: {
+            eventType: { S: eventType },
+        },
+        UpdateExpression: "SET #count = if_not_exists(#count, :zero) + :inc, lastUpdated = :now",
+        ExpressionAttributeNames: {
+            "#count": "count",
+        },
+        ExpressionAttributeValues: {
+            ":inc": { N: "1" },
+            ":zero": { N: "0" },
+            ":now": { S: new Date().toISOString() },
+        },
+        ReturnValues: "ALL_NEW",
+    });
+
+    const result = await dynamoClient.send(command);
+    return {
+        success: true,
+        eventType: eventType,
+        count: parseInt(result.Attributes.count.N, 10),
+    };
+};
+
+// Analytics: Get all stats
+const getAnalyticsStats = async () => {
+    if (!ANALYTICS_TABLE) {
+        return { success: false, error: "Analytics not configured" };
+    }
+
+    const command = new ScanCommand({
+        TableName: ANALYTICS_TABLE,
+    });
+
+    const result = await dynamoClient.send(command);
+    const stats = {};
+
+    for (const item of result.Items || []) {
+        stats[item.eventType.S] = {
+            count: parseInt(item.count.N, 10),
+            lastUpdated: item.lastUpdated?.S || null,
+        };
+    }
+
+    return { success: true, stats };
+};
+
 exports.handler = async (event) => {
     // Handle preflight OPTIONS requests
     if (event.requestContext?.http?.method === "OPTIONS") {
@@ -117,7 +185,46 @@ exports.handler = async (event) => {
         };
     }
 
+    // Get request path for routing
+    const path = event.rawPath || event.requestContext?.http?.path || "/api/invoke";
+
     try {
+        // Route: /api/track - Track analytics event
+        if (path.includes("/api/track")) {
+            const body = typeof event.body === "string" ? JSON.parse(event.body) : event.body;
+            const { eventType } = body;
+
+            if (!eventType) {
+                return {
+                    statusCode: 400,
+                    headers: { ...corsHeaders, "Content-Type": "application/json" },
+                    body: JSON.stringify({ error: "Missing required field: eventType" }),
+                };
+            }
+
+            console.log(`Tracking event: ${eventType}`);
+            const result = await trackEvent(eventType);
+
+            return {
+                statusCode: 200,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                body: JSON.stringify(result),
+            };
+        }
+
+        // Route: /api/stats - Get analytics stats
+        if (path.includes("/api/stats")) {
+            console.log("Getting analytics stats");
+            const result = await getAnalyticsStats();
+
+            return {
+                statusCode: 200,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                body: JSON.stringify(result),
+            };
+        }
+
+        // Route: /api/invoke - Bedrock invocation (default)
         // Parse request body
         const body =
             typeof event.body === "string" ? JSON.parse(event.body) : event.body;
