@@ -32,7 +32,7 @@ export class KiroTranslatorStack extends cdk.Stack {
         // CloudFront Origin Access Control
         // ========================================
         const oac = new cloudfront.S3OriginAccessControl(this, "OAC", {
-            originAccessControlName: "KiroTranslatorOAC",
+            originAccessControlName: "KiroTranslatorOAC-v2",
             signing: cloudfront.Signing.SIGV4_ALWAYS,
         });
 
@@ -87,7 +87,7 @@ export class KiroTranslatorStack extends cdk.Stack {
         // Lambda@Edge for SigV4 Signing (us-east-1)
         // ========================================
         const edgeFunction = new cloudfront.experimental.EdgeFunction(this, "EdgeSigner", {
-            functionName: "kiro-edge-signer",
+            functionName: "kiro-edge-signer-v2",
             runtime: lambda.Runtime.NODEJS_20_X,
             handler: "index.handler",
             code: lambda.Code.fromAsset(path.join(__dirname, "../../lambda/edge-signer")),
