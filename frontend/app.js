@@ -759,22 +759,47 @@ async function callBedrockAPIStreaming(prompt, onChunk) {
 
         const contentType = response.headers.get('content-type');
 
-        // Handle SSE (Server-Sent Events) response
+        // Handle SSE (Server-Sent Events) response with true streaming
         if (contentType && contentType.includes('text/event-stream')) {
-            const text = await response.text();
-            const lines = text.split('\n');
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
 
-            for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    try {
-                        const data = JSON.parse(line.slice(6));
-                        if (data.text) {
-                            onChunk(data.text);
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                // Decode the chunk and add to buffer
+                buffer += decoder.decode(value, { stream: true });
+
+                // Process complete SSE lines from buffer
+                const lines = buffer.split('\n');
+                // Keep the last incomplete line in buffer
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            if (data.text) {
+                                onChunk(data.text);
+                            }
+                        } catch (e) {
+                            // Skip malformed JSON lines
                         }
-                        // Ignore the final 'done' message
-                    } catch (e) {
-                        // Skip malformed JSON lines
                     }
+                }
+            }
+
+            // Process any remaining data in buffer
+            if (buffer.startsWith('data: ')) {
+                try {
+                    const data = JSON.parse(buffer.slice(6));
+                    if (data.text) {
+                        onChunk(data.text);
+                    }
+                } catch (e) {
+                    // Skip malformed JSON
                 }
             }
         } else {
