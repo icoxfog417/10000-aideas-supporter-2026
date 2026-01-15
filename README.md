@@ -46,7 +46,7 @@ flowchart TB
 
     subgraph CloudFront
         CF[CloudFront Distribution]
-        Edge[Lambda@Edge]
+        Edge[Lambda at Edge]
     end
 
     S3[S3 Bucket]
@@ -56,7 +56,7 @@ flowchart TB
 
     Browser --> CF
     CF -->|Static Assets| S3
-    CF -->|/api/*| Edge
+    CF -->|api| Edge
     Edge -->|SigV4 Sign| LambdaURL
     LambdaURL --> Bedrock
     LambdaURL --> DynamoDB
