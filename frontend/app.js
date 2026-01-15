@@ -44,25 +44,38 @@ const kiroMessages = {
     }
 };
 
-// ===== AI Idea Suggestion Prompt Template =====
-const ideaSuggestionPrompt = `You are a creative AI assistant helping generate innovative hackathon ideas. Based on the selected categories and problems, suggest a compelling project idea for an AWS AI hackathon.
+// ===== AI Idea Suggestion Prompt Template (Working Backwards Style) =====
+const ideaSuggestionPrompt = `You are an expert product manager helping generate innovative hackathon ideas using the Amazon Working Backwards methodology. Based on the selected categories and problems, create a compelling project idea for an AWS AI hackathon.
 
 Selected categories: {categories}
 Selected problems to solve: {problems}
 
-Generate a creative, feasible hackathon project idea in Japanese. The idea should:
-1. Leverage AWS AI/ML services (Bedrock, SageMaker, Rekognition, Transcribe, Polly, etc.)
-2. Address the selected problem areas
-3. Be achievable within a hackathon timeframe
-4. Have a clear value proposition
+Generate a creative, feasible hackathon project idea in Japanese. The idea should leverage AWS AI/ML services and be achievable within a hackathon timeframe.
 
-Output format (in Japanese):
-プロジェクト名: [catchy project name]
-概要: [2-3 sentence description of the idea]
-主要機能: [3-4 bullet points of key features]
-使用AWSサービス: [list of AWS services to use]
+CRITICAL RULES:
+- Do NOT use bullet points (・, -, *) anywhere in your response
+- Write in flowing paragraph style for all sections
+- Be specific and concrete, not generic
 
-Only output in this format, no other explanations.`;
+Output format (in Japanese, with these exact section headers):
+
+プロジェクト名: [catchy and memorable project name]
+
+ビッグアイデア:
+[Follow this format exactly: 「○○な人が××したい時に、△△することができるサービス」- describe WHO the target user is, WHAT they want to do, and WHAT capability they gain]
+
+ビジョン:
+[Describe the functional flow: what the user inputs, what the system processes using which technology, and what output/result is returned. Write as connected sentences, not bullet points. Be specific about the user journey from input to output.]
+
+インパクト:
+[Follow this format: 「いままでは○○するのに××しなければならなかったが、本プロジェクトの■■機能により△△が可能になり、結果として□□という効果を発揮する」- contrast the old way vs the new way and the transformative impact]
+
+実装計画:
+[Create an agile sprint plan with 3-4 sprints. For each sprint, describe what working increment will be delivered. Format as: 「Sprint 1: ○○を実装し動作確認。Sprint 2: ○○機能を追加しエンドツーエンドで動作。Sprint 3: ○○を改善しユーザーテスト実施。」Write as connected text, not bullet points.]
+
+使用AWSサービス: [comma-separated list of AWS services]
+
+Only output in this exact format, no other explanations or bullet points.`;
 
 // ===== Translation Prompt Template =====
 const translationPrompt = `You are a professional translator specializing in tech startup pitches and AWS hackathon submissions. Your task is to translate the following content from the source language to natural, professional English suitable for a tech competition submission.
@@ -418,45 +431,88 @@ function useSuggestion() {
 
     const suggestion = suggestionContent.textContent;
 
-    // Parse the suggestion and fill form fields
+    // Parse the Working Backwards format suggestion
+    // Section headers: プロジェクト名, ビッグアイデア, ビジョン, インパクト, 実装計画, 使用AWSサービス
+    const sections = {};
+    const sectionHeaders = ['プロジェクト名', 'ビッグアイデア', 'ビジョン', 'インパクト', '実装計画', '使用AWSサービス'];
+
+    let currentSection = null;
+    let currentContent = [];
+
     const lines = suggestion.split('\n');
-    let bigIdea = '';
-    let vision = '';
 
     for (const line of lines) {
-        if (line.startsWith('概要:') || line.startsWith('概要：')) {
-            bigIdea = line.replace(/概要[:：]\s*/, '').trim();
-        } else if (line.startsWith('主要機能:') || line.startsWith('主要機能：')) {
-            // Get the next lines until we hit another section
-            const idx = lines.indexOf(line);
-            const features = [];
-            for (let i = idx + 1; i < lines.length; i++) {
-                if (lines[i].startsWith('使用AWS') || lines[i].startsWith('プロジェクト')) break;
-                if (lines[i].trim().startsWith('・') || lines[i].trim().startsWith('-')) {
-                    features.push(lines[i].trim());
+        // Check if this line starts a new section
+        let foundHeader = null;
+        for (const header of sectionHeaders) {
+            if (line.startsWith(header + ':') || line.startsWith(header + '：')) {
+                foundHeader = header;
+                break;
+            }
+        }
+
+        if (foundHeader) {
+            // Save previous section content
+            if (currentSection) {
+                sections[currentSection] = currentContent.join('\n').trim();
+            }
+            // Start new section
+            currentSection = foundHeader;
+            // Get content after the header on the same line
+            const afterHeader = line.replace(new RegExp(`^${foundHeader}[:：]\\s*`), '').trim();
+            currentContent = afterHeader ? [afterHeader] : [];
+        } else if (currentSection) {
+            // Add line to current section
+            currentContent.push(line);
+        }
+    }
+    // Save last section
+    if (currentSection) {
+        sections[currentSection] = currentContent.join('\n').trim();
+    }
+
+    // Fill form fields with parsed sections
+    const fieldMappings = [
+        { section: 'ビッグアイデア', elementId: 'big-idea', stateKey: 'bigIdea' },
+        { section: 'ビジョン', elementId: 'vision', stateKey: 'vision' },
+        { section: 'インパクト', elementId: 'impact', stateKey: 'impact' },
+        { section: '実装計画', elementId: 'game-plan', stateKey: 'gamePlan' }
+    ];
+
+    for (const mapping of fieldMappings) {
+        const content = sections[mapping.section];
+        if (content) {
+            const element = document.getElementById(mapping.elementId);
+            if (element) {
+                element.value = content;
+                updateCharCount(mapping.elementId);
+                state.formData[mapping.stateKey] = content;
+            }
+        }
+    }
+
+    // Auto-fill team name with project name if available
+    if (sections['プロジェクト名']) {
+        const teamNameEl = document.getElementById('team-name');
+        if (teamNameEl) {
+            teamNameEl.value = sections['プロジェクト名'];
+            updateCharCount('team-name');
+            state.formData.teamName = sections['プロジェクト名'];
+        }
+    }
+
+    // Auto-select AWS services if available
+    if (sections['使用AWSサービス']) {
+        const awsServices = sections['使用AWSサービス'].split(/[,、]/).map(s => s.trim());
+        // Select matching service chips
+        document.querySelectorAll('.service-chip').forEach(chip => {
+            const serviceName = chip.dataset.service;
+            if (awsServices.some(s => s.includes(serviceName) || serviceName.includes(s))) {
+                if (!chip.classList.contains('selected')) {
+                    chip.click(); // This will also update the state
                 }
             }
-            vision = features.join('\n');
-        }
-    }
-
-    // Fill the form fields in Step 2
-    if (bigIdea) {
-        const bigIdeaEl = document.getElementById('big-idea');
-        if (bigIdeaEl) {
-            bigIdeaEl.value = bigIdea;
-            updateCharCount('big-idea');
-            state.formData.bigIdea = bigIdea;
-        }
-    }
-
-    if (vision) {
-        const visionEl = document.getElementById('vision');
-        if (visionEl) {
-            visionEl.value = vision;
-            updateCharCount('vision');
-            state.formData.vision = vision;
-        }
+        });
     }
 
     showToast('アイデアをフォームに反映しました！Step 2で編集してね！');
