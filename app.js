@@ -438,7 +438,21 @@ async function translateAll() {
     const apiKey = document.getElementById('api-key').value.trim();
     const provider = document.getElementById('api-provider').value;
 
-    if (!apiKey) {
+    // Validate based on provider
+    if (provider === 'bedrock') {
+        const lambdaUrl = document.getElementById('lambda-function-url').value.trim();
+        const accessKey = document.getElementById('aws-access-key').value.trim();
+        const secretKey = document.getElementById('aws-secret-key').value.trim();
+
+        if (!lambdaUrl) {
+            showToast('Lambda Function URLを入力してください', 'error');
+            return;
+        }
+        if (!accessKey || !secretKey) {
+            showToast('AWS認証情報を入力してください', 'error');
+            return;
+        }
+    } else if (!apiKey) {
         showToast('APIキーを入力してください', 'error');
         return;
     }
@@ -564,57 +578,66 @@ async function callOpenAIAPI(prompt, apiKey) {
 }
 
 async function callBedrockAPI(prompt, apiKey) {
-    // Note: Bedrock requires AWS credentials, not just an API key
-    // This is a simplified version - in production, you'd use AWS SDK
-    // For now, we'll show a message about Bedrock setup
-
+    // Get Bedrock settings
+    const lambdaFunctionUrl = document.getElementById('lambda-function-url').value.trim();
     const region = document.getElementById('bedrock-region').value;
+    const accessKeyId = document.getElementById('aws-access-key').value.trim();
+    const secretAccessKey = document.getElementById('aws-secret-key').value.trim();
+    const sessionToken = document.getElementById('aws-session-token').value.trim() || null;
     const modelId = state.selectedModel;
 
-    // Parse AWS credentials (format: ACCESS_KEY:SECRET_KEY)
-    const [accessKey, secretKey] = apiKey.split(':');
-
-    if (!accessKey || !secretKey) {
-        throw new Error('Bedrockの場合、APIキーは「ACCESS_KEY:SECRET_KEY」の形式で入力してください');
+    // Validate required fields
+    if (!lambdaFunctionUrl) {
+        throw new Error('Lambda Function URLを入力してください');
+    }
+    if (!accessKeyId || !secretAccessKey) {
+        throw new Error('AWS Access Key IDとSecret Access Keyを入力してください');
     }
 
-    // For Bedrock, we need to use AWS Signature V4
-    // This is a simplified implementation - in production use AWS SDK
-    const endpoint = `https://bedrock-runtime.${region}.amazonaws.com/model/${encodeURIComponent(modelId)}/invoke`;
+    // Create Bedrock Lambda client with SigV4 signing
+    const client = new BedrockLambdaClient({
+        functionUrl: lambdaFunctionUrl,
+        region: region,
+        accessKeyId: accessKeyId,
+        secretAccessKey: secretAccessKey,
+        sessionToken: sessionToken
+    });
 
-    // Prepare request body based on model type
-    let requestBody;
-    if (modelId.startsWith('anthropic.')) {
-        requestBody = JSON.stringify({
-            anthropic_version: "bedrock-2023-05-31",
-            max_tokens: 2000,
-            messages: [{ role: "user", content: prompt }]
-        });
-    } else if (modelId.startsWith('amazon.nova')) {
-        requestBody = JSON.stringify({
-            messages: [{ role: "user", content: [{ text: prompt }] }],
-            inferenceConfig: { maxTokens: 2000 }
-        });
-    } else if (modelId.startsWith('amazon.titan')) {
-        requestBody = JSON.stringify({
-            inputText: prompt,
-            textGenerationConfig: { maxTokenCount: 2000 }
-        });
-    } else if (modelId.startsWith('meta.llama')) {
-        requestBody = JSON.stringify({
-            prompt: prompt,
-            max_gen_len: 2000
-        });
-    } else if (modelId.startsWith('mistral.')) {
-        requestBody = JSON.stringify({
-            prompt: `<s>[INST] ${prompt} [/INST]`,
-            max_tokens: 2000
-        });
+    // Prepare payload for Lambda function
+    // Lambda function should handle the model invocation
+    const payload = {
+        modelId: modelId,
+        message: prompt
+    };
+
+    try {
+        const response = await client.invoke(payload);
+
+        // Parse response based on expected Lambda response format
+        // Lambda should return: { output: "translated text" } or similar
+        if (response.output) {
+            return response.output;
+        } else if (response.content && response.content[0]) {
+            // Anthropic format from Converse API
+            return response.content[0].text;
+        } else if (response.message) {
+            return response.message;
+        } else if (typeof response === 'string') {
+            return response;
+        }
+
+        throw new Error('Unexpected response format from Lambda');
+    } catch (error) {
+        // Check for common errors
+        if (error.message.includes('403')) {
+            throw new Error('認証エラー: AWS認証情報を確認してください。Lambda Function URLのIAM認証設定も確認してください。');
+        } else if (error.message.includes('404')) {
+            throw new Error('Lambda Function URLが見つかりません。URLを確認してください。');
+        } else if (error.message.includes('CORS')) {
+            throw new Error('CORSエラー: Lambda Function URLのCORS設定を確認してください。');
+        }
+        throw error;
     }
-
-    // Note: Browser-based AWS signing is complex
-    // Recommend using a Lambda proxy or AWS Amplify
-    throw new Error('ブラウザからのBedrock直接呼び出しは複雑なため、Claude (Anthropic) または GPT-4o-mini を推奨します。\n\nもしくはAWS Lambdaでプロキシを作成してください。');
 }
 
 // ===== Results =====

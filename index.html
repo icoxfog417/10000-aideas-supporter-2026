@@ -235,12 +235,26 @@
                 </div>
 
                 <div class="form-group bedrock-settings hidden">
-                    <label for="bedrock-region">リージョン</label>
+                    <label for="lambda-function-url">Lambda Function URL</label>
+                    <input type="text" id="lambda-function-url" placeholder="https://xxxxx.lambda-url.ap-northeast-1.on.aws/">
+                    <p class="hint">IAM認証が有効なLambda Function URLを入力してください</p>
+
+                    <label for="bedrock-region" style="margin-top: 15px;">リージョン</label>
                     <select id="bedrock-region">
                         <option value="us-east-1">us-east-1</option>
                         <option value="us-west-2">us-west-2</option>
                         <option value="ap-northeast-1">ap-northeast-1 (東京)</option>
                     </select>
+
+                    <label for="aws-access-key" style="margin-top: 15px;">AWS Access Key ID</label>
+                    <input type="text" id="aws-access-key" placeholder="AKIA...">
+
+                    <label for="aws-secret-key" style="margin-top: 10px;">AWS Secret Access Key</label>
+                    <input type="password" id="aws-secret-key" placeholder="シークレットキー">
+
+                    <label for="aws-session-token" style="margin-top: 10px;">Session Token（一時認証の場合）</label>
+                    <input type="password" id="aws-session-token" placeholder="オプション">
+                    <p class="hint">🔒 認証情報はSigV4署名のみに使用され、保存されません</p>
                 </div>
             </div>
 
@@ -360,6 +374,7 @@
         </footer>
     </div>
 
+    <script src="sigv4.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
