@@ -391,7 +391,7 @@ function updateKiroMessage() {
     }
 }
 
-// ===== AI Idea Suggestion =====
+// ===== AI Idea Suggestion (with Streaming) =====
 async function generateAiSuggestion() {
     const suggestionBtn = document.getElementById('ai-suggest-btn');
     const suggestionResult = document.getElementById('ai-suggestion-result');
@@ -399,6 +399,11 @@ async function generateAiSuggestion() {
 
     if (!suggestionBtn || !suggestionResult || !suggestionContent) {
         showToast('AI提案機能が利用できません', 'error');
+        return;
+    }
+
+    // Prevent duplicate requests
+    if (suggestionBtn.disabled) {
         return;
     }
 
@@ -410,24 +415,29 @@ async function generateAiSuggestion() {
         ? state.selectedProblems.join(', ')
         : '未選択';
 
-    // Show loading state
+    // Show loading state and disable button
     suggestionBtn.disabled = true;
     suggestionBtn.innerHTML = '<span class="btn-loading">⏳ 生成中...</span>';
+    suggestionContent.textContent = '';
+    suggestionResult.classList.remove('hidden');
 
     try {
         const prompt = ideaSuggestionPrompt
             .replace('{categories}', categories)
             .replace('{problems}', problems);
 
-        const suggestion = await callBedrockAPI(prompt);
+        // Use streaming API
+        await callBedrockAPIStreaming(prompt, (chunk) => {
+            // Update content in real-time as chunks arrive
+            suggestionContent.textContent += chunk;
+        });
 
-        suggestionContent.textContent = suggestion;
-        suggestionResult.classList.remove('hidden');
         showToast('アイデアを生成しました！');
 
     } catch (error) {
         console.error('AI suggestion error:', error);
         showToast(`アイデア生成エラー: ${error.message}`, 'error');
+        suggestionResult.classList.add('hidden');
     } finally {
         suggestionBtn.disabled = false;
         suggestionBtn.innerHTML = '✨ AIでアイデアを生成';
@@ -677,6 +687,72 @@ async function callBedrockAPI(prompt) {
             throw new Error('Lambda Function URLが見つかりません。');
         } else if (error.message.includes('CORS')) {
             throw new Error('CORSエラー: CORS設定を確認してください。');
+        }
+        throw error;
+    }
+}
+
+// Streaming API call for AI suggestion
+async function callBedrockAPIStreaming(prompt, onChunk) {
+    const config = window.APP_CONFIG || {};
+    const modelId = state.selectedModel;
+
+    if (!config.apiEndpoint) {
+        throw new Error('API endpoint not configured');
+    }
+
+    const payload = {
+        modelId: modelId,
+        message: prompt,
+        stream: true
+    };
+
+    try {
+        const response = await fetch(config.apiEndpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.text();
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const contentType = response.headers.get('content-type');
+
+        // Handle SSE (Server-Sent Events) response
+        if (contentType && contentType.includes('text/event-stream')) {
+            const text = await response.text();
+            const lines = text.split('\n');
+
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    try {
+                        const data = JSON.parse(line.slice(6));
+                        if (data.text) {
+                            onChunk(data.text);
+                        }
+                        // Ignore the final 'done' message
+                    } catch (e) {
+                        // Skip malformed JSON lines
+                    }
+                }
+            }
+        } else {
+            // Fallback to regular JSON response
+            const data = await response.json();
+            if (data.output) {
+                onChunk(data.output);
+            }
+        }
+    } catch (error) {
+        if (error.message.includes('403')) {
+            throw new Error('認証エラー: Lambda@Edge署名に問題がある可能性があります。');
+        } else if (error.message.includes('404')) {
+            throw new Error('APIエンドポイントが見つかりません。');
         }
         throw error;
     }
