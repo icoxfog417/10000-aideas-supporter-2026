@@ -22,19 +22,16 @@ const kiroMessages = {
     step1: [
         '一緒にアイデアを形にしよう！',
         'どんなアイデアも大歓迎だよ！',
-        'ワクワクするアイデアを教えて！'
+        'ワクワクするアイデアを教えて！',
+        'AIにアイデア提案してもらおう！'
     ],
     step2: [
         '詳しく教えてくれると嬉しいな！',
         '日本語でOKだよ！',
-        'いい感じ！続けて！'
+        'いい感じ！続けて！',
+        '翻訳はお任せあれ！'
     ],
     step3: [
-        'AWS認証情報を入れてね！',
-        'Bedrockで翻訳するよ！',
-        '英語に変身させるよ！'
-    ],
-    step4: [
         'お疲れ様！素敵なアイデアだね！',
         '完璧！あとは応募するだけ！',
         'コンテスト頑張ってね！'
@@ -47,6 +44,26 @@ const kiroMessages = {
         mistral: 'Mistral選んだね！欧州の技術で翻訳！'
     }
 };
+
+// ===== AI Idea Suggestion Prompt Template =====
+const ideaSuggestionPrompt = `You are a creative AI assistant helping generate innovative hackathon ideas. Based on the selected categories and problems, suggest a compelling project idea for an AWS AI hackathon.
+
+Selected categories: {categories}
+Selected problems to solve: {problems}
+
+Generate a creative, feasible hackathon project idea in Japanese. The idea should:
+1. Leverage AWS AI/ML services (Bedrock, SageMaker, Rekognition, Transcribe, Polly, etc.)
+2. Address the selected problem areas
+3. Be achievable within a hackathon timeframe
+4. Have a clear value proposition
+
+Output format (in Japanese):
+プロジェクト名: [catchy project name]
+概要: [2-3 sentence description of the idea]
+主要機能: [3-4 bullet points of key features]
+使用AWSサービス: [list of AWS services to use]
+
+Only output in this format, no other explanations.`;
 
 // ===== Translation Prompt Template =====
 const translationPrompt = `You are a professional translator specializing in tech startup pitches and AWS hackathon submissions. Your task is to translate the following content from the source language to natural, professional English suitable for a tech competition submission.
@@ -262,6 +279,9 @@ function updateCharCount(id) {
 
 // ===== Navigation =====
 function goToStep(step) {
+    // Max 3 steps now
+    if (step < 1 || step > 3) return;
+
     if (step > state.currentStep && !validateCurrentStep()) {
         return;
     }
@@ -282,10 +302,6 @@ function goToStep(step) {
 
     state.currentStep = step;
     updateKiroMessage();
-
-    if (step === 3) {
-        updateTranslationPreview();
-    }
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -310,48 +326,111 @@ function updateKiroMessage() {
     }
 }
 
-function updateTranslationPreview() {
-    const preview = document.getElementById('translation-preview');
-    const bigIdea = document.getElementById('big-idea').value.trim();
+// ===== AI Idea Suggestion =====
+async function generateAiSuggestion() {
+    const suggestionBtn = document.getElementById('ai-suggest-btn');
+    const suggestionResult = document.getElementById('ai-suggestion-result');
+    const suggestionContent = document.getElementById('ai-suggestion-content');
 
-    if (bigIdea) {
-        preview.textContent = bigIdea.substring(0, 200) + (bigIdea.length > 200 ? '...' : '');
-        preview.style.fontStyle = 'normal';
-    } else {
-        preview.textContent = '入力した内容がここに表示されます...';
-        preview.style.fontStyle = 'italic';
+    if (!suggestionBtn || !suggestionResult || !suggestionContent) {
+        showToast('AI提案機能が利用できません', 'error');
+        return;
+    }
+
+    // Get selected categories and problems
+    const categories = state.selectedCategories.length > 0
+        ? state.selectedCategories.join(', ')
+        : '未選択';
+    const problems = state.selectedProblems.length > 0
+        ? state.selectedProblems.join(', ')
+        : '未選択';
+
+    // Show loading state
+    suggestionBtn.disabled = true;
+    suggestionBtn.innerHTML = '<span class="btn-loading">⏳ 生成中...</span>';
+
+    try {
+        const prompt = ideaSuggestionPrompt
+            .replace('{categories}', categories)
+            .replace('{problems}', problems);
+
+        const suggestion = await callBedrockAPI(prompt);
+
+        suggestionContent.textContent = suggestion;
+        suggestionResult.classList.remove('hidden');
+        showToast('アイデアを生成しました！');
+
+    } catch (error) {
+        console.error('AI suggestion error:', error);
+        showToast(`アイデア生成エラー: ${error.message}`, 'error');
+    } finally {
+        suggestionBtn.disabled = false;
+        suggestionBtn.innerHTML = '✨ AIでアイデアを生成';
     }
 }
 
-// ===== Translation =====
-async function translateAll() {
-    // Check if config is available (CloudFront API endpoint)
-    const config = window.APP_CONFIG || {};
-    const hasCloudFrontApi = config.apiEndpoint && !config.apiEndpoint.includes('__');
+function useSuggestion() {
+    const suggestionContent = document.getElementById('ai-suggestion-content');
+    if (!suggestionContent) return;
 
-    if (!hasCloudFrontApi) {
-        // Fallback mode - require manual input
-        const lambdaUrl = document.getElementById('lambda-function-url')?.value?.trim();
-        const accessKey = document.getElementById('aws-access-key')?.value?.trim();
-        const secretKey = document.getElementById('aws-secret-key')?.value?.trim();
+    const suggestion = suggestionContent.textContent;
 
-        if (!lambdaUrl) {
-            showToast('Lambda Function URLを入力してください', 'error');
-            return;
-        }
-        if (!accessKey || !secretKey) {
-            showToast('AWS認証情報を入力してください', 'error');
-            return;
+    // Parse the suggestion and fill form fields
+    const lines = suggestion.split('\n');
+    let bigIdea = '';
+    let vision = '';
+
+    for (const line of lines) {
+        if (line.startsWith('概要:') || line.startsWith('概要：')) {
+            bigIdea = line.replace(/概要[:：]\s*/, '').trim();
+        } else if (line.startsWith('主要機能:') || line.startsWith('主要機能：')) {
+            // Get the next lines until we hit another section
+            const idx = lines.indexOf(line);
+            const features = [];
+            for (let i = idx + 1; i < lines.length; i++) {
+                if (lines[i].startsWith('使用AWS') || lines[i].startsWith('プロジェクト')) break;
+                if (lines[i].trim().startsWith('・') || lines[i].trim().startsWith('-')) {
+                    features.push(lines[i].trim());
+                }
+            }
+            vision = features.join('\n');
         }
     }
 
-    const translateBtn = document.getElementById('translate-btn');
-    const btnText = translateBtn.querySelector('.btn-text');
-    const btnLoading = translateBtn.querySelector('.btn-loading');
+    // Fill the form fields in Step 2
+    if (bigIdea) {
+        const bigIdeaEl = document.getElementById('big-idea');
+        if (bigIdeaEl) {
+            bigIdeaEl.value = bigIdea;
+            updateCharCount('big-idea');
+            state.formData.bigIdea = bigIdea;
+        }
+    }
 
-    btnText.classList.add('hidden');
-    btnLoading.classList.remove('hidden');
-    translateBtn.disabled = true;
+    if (vision) {
+        const visionEl = document.getElementById('vision');
+        if (visionEl) {
+            visionEl.value = vision;
+            updateCharCount('vision');
+            state.formData.vision = vision;
+        }
+    }
+
+    showToast('アイデアをフォームに反映しました！Step 2で編集してね！');
+    goToStep(2);
+}
+
+// ===== Translation =====
+async function translateAndComplete() {
+    const translateBtn = document.getElementById('translate-btn');
+    const btnText = translateBtn?.querySelector('.btn-text');
+    const btnLoading = translateBtn?.querySelector('.btn-loading');
+
+    if (translateBtn) {
+        if (btnText) btnText.classList.add('hidden');
+        if (btnLoading) btnLoading.classList.remove('hidden');
+        translateBtn.disabled = true;
+    }
 
     try {
         const fields = [
@@ -362,29 +441,36 @@ async function translateAll() {
         ];
 
         for (const field of fields) {
-            const content = document.getElementById(field.elementId).value.trim();
+            const content = document.getElementById(field.elementId)?.value?.trim();
             if (content) {
                 const translated = await translateText(content, field.limit);
                 state.translatedData[field.key] = translated;
             }
         }
 
-        state.translatedData.teamName = document.getElementById('team-name').value.trim();
+        state.translatedData.teamName = document.getElementById('team-name')?.value?.trim() || '';
         state.translatedData.aiServices = state.selectedAiServices.join(', ');
         state.translatedData.otherServices = state.selectedOtherServices.join(', ');
 
         updateResults();
-        goToStep(4);
+        goToStep(3);
         showToast('翻訳完了！');
 
     } catch (error) {
         console.error('Translation error:', error);
         showToast(`翻訳エラー: ${error.message}`, 'error');
     } finally {
-        btnText.classList.remove('hidden');
-        btnLoading.classList.add('hidden');
-        translateBtn.disabled = false;
+        if (translateBtn) {
+            if (btnText) btnText.classList.remove('hidden');
+            if (btnLoading) btnLoading.classList.add('hidden');
+            translateBtn.disabled = false;
+        }
     }
+}
+
+// Keep translateAll as alias for backward compatibility
+async function translateAll() {
+    return translateAndComplete();
 }
 
 async function translateText(content, charLimit) {
