@@ -3,7 +3,6 @@ const state = {
     currentStep: 1,
     selectedCategories: [],
     selectedProblems: [],
-    selectedTemplate: null,
     selectedAiServices: [],
     selectedOtherServices: [],
     selectedModel: 'amazon.nova-pro-v1:0', // Default model
@@ -85,10 +84,73 @@ Content to translate:
 
 Translated English (only output the translation, nothing else):`;
 
+// ===== Category-specific Problems (2025-2026 Trends) =====
+const categoryProblems = {
+    'workplace-efficiency': [
+        { id: 'meeting-notes', label: '📝 議事録・会議要約の自動化' },
+        { id: 'ai-agent', label: '🤖 AIエージェントによるタスク自動化' },
+        { id: 'knowledge-search', label: '🔍 社内ナレッジの検索・要約' },
+        { id: 'code-assist', label: '💻 コード生成・レビュー支援' },
+        { id: 'doc-creation', label: '📄 ドキュメント・メール自動作成' },
+        { id: 'schedule-opt', label: '📅 スケジュール・会議最適化' },
+        { id: 'project-mgmt', label: '📊 プロジェクト管理の効率化' },
+        { id: 'customer-support', label: '💬 カスタマーサポート自動化' },
+        { id: 'data-report', label: '📈 データ分析・レポート生成' },
+        { id: 'multilang-comm', label: '🌐 多言語コミュニケーション' },
+    ],
+    'daily-life': [
+        { id: 'personal-ai', label: '🎯 パーソナルAIアシスタント' },
+        { id: 'health-fitness', label: '💪 健康管理・フィットネス' },
+        { id: 'finance-advice', label: '💰 家計管理・資産運用' },
+        { id: 'recipe-meal', label: '🍳 料理レシピ・献立提案' },
+        { id: 'learning-skill', label: '📚 学習・スキルアップ支援' },
+        { id: 'travel-guide', label: '✈️ 旅行計画・観光ガイド' },
+        { id: 'smart-home', label: '🏠 スマートホーム連携' },
+        { id: 'mental-health', label: '🧘 メンタルヘルスケア' },
+        { id: 'childcare', label: '👶 子育て・育児支援' },
+        { id: 'elderly-care', label: '👴 高齢者見守り・介護' },
+    ],
+    'commercial': [
+        { id: 'ec-personalize', label: '🛒 ECパーソナライズ' },
+        { id: 'demand-forecast', label: '📦 需要予測・在庫最適化' },
+        { id: 'marketing-auto', label: '📣 マーケティング自動化' },
+        { id: 'dynamic-pricing', label: '💲 動的価格設定' },
+        { id: 'fraud-detect', label: '🔒 不正検知・セキュリティ' },
+        { id: 'supply-chain', label: '🚚 サプライチェーン最適化' },
+        { id: 'recommendation', label: '⭐ レコメンデーション' },
+        { id: 'chatbot-sales', label: '🤝 チャットボット接客' },
+        { id: 'ad-optimize', label: '📱 広告・コンテンツ最適化' },
+        { id: 'contract-legal', label: '📋 契約書・法務文書分析' },
+    ],
+    'social-impact': [
+        { id: 'disaster-prevention', label: '🌊 災害予測・防災支援' },
+        { id: 'environment', label: '🌱 環境モニタリング・気候変動' },
+        { id: 'medical-diagnosis', label: '🏥 医療診断支援' },
+        { id: 'education-gap', label: '📖 教育格差の解消' },
+        { id: 'accessibility', label: '♿ アクセシビリティ向上' },
+        { id: 'agriculture', label: '🌾 農業・食料問題' },
+        { id: 'mobility', label: '🚗 交通・移動の最適化' },
+        { id: 'energy', label: '⚡ エネルギー効率化' },
+        { id: 'local-community', label: '🏘️ 地域活性化・まちづくり' },
+        { id: 'multicultural', label: '🤝 多文化共生・言語バリアフリー' },
+    ],
+    'creative': [
+        { id: 'image-video', label: '🖼️ AI画像・動画生成' },
+        { id: 'music-sound', label: '🎵 音楽・サウンド制作' },
+        { id: 'storytelling', label: '📖 ストーリーテリング・脚本' },
+        { id: 'game-interactive', label: '🎮 ゲーム・インタラクティブ' },
+        { id: 'virtual-influencer', label: '👤 バーチャルインフルエンサー' },
+        { id: '3d-metaverse', label: '🌐 3Dモデリング・メタバース' },
+        { id: 'fashion-design', label: '👗 ファッション・デザイン' },
+        { id: 'architecture', label: '🏛️ 建築・インテリアデザイン' },
+        { id: 'art-nft', label: '🎨 アート・NFT制作' },
+        { id: 'personalized-content', label: '✨ パーソナライズドコンテンツ' },
+    ],
+};
+
 // ===== Initialize =====
 document.addEventListener('DOMContentLoaded', () => {
     initializeChips();
-    initializeTemplates();
     initializeTextareas();
     initializeModelSelector();
     updateKiroMessage();
@@ -125,35 +187,23 @@ function updateKiroMood(mood) {
 
 // ===== Chip Selection =====
 function initializeChips() {
-    document.querySelectorAll('.category-chips .chip').forEach(chip => {
+    // Category chips - single selection
+    document.querySelectorAll('.category-chip').forEach(chip => {
         chip.addEventListener('click', () => {
-            chip.classList.toggle('selected');
+            // Deselect all other categories
+            document.querySelectorAll('.category-chip').forEach(c => c.classList.remove('selected'));
+            chip.classList.add('selected');
+
             const category = chip.dataset.category;
-            if (chip.classList.contains('selected')) {
-                state.selectedCategories.push(category);
-            } else {
-                state.selectedCategories = state.selectedCategories.filter(c => c !== category);
-            }
+            state.selectedCategories = [category];
+            state.selectedProblems = []; // Reset problems when category changes
+
+            // Update problems based on selected category
+            updateProblemsForCategory(category);
         });
     });
 
-    document.querySelectorAll('.problem-chips .chip').forEach(chip => {
-        chip.addEventListener('click', () => {
-            if (chip.dataset.problem === 'custom') {
-                document.getElementById('custom-problem').classList.toggle('hidden');
-                chip.classList.toggle('selected');
-                return;
-            }
-            chip.classList.toggle('selected');
-            const problem = chip.dataset.problem;
-            if (chip.classList.contains('selected')) {
-                state.selectedProblems.push(problem);
-            } else {
-                state.selectedProblems = state.selectedProblems.filter(p => p !== problem);
-            }
-        });
-    });
-
+    // Service chips
     document.querySelectorAll('.service-chip').forEach(chip => {
         chip.addEventListener('click', () => {
             chip.classList.toggle('selected');
@@ -177,63 +227,56 @@ function initializeChips() {
     });
 }
 
-// ===== Template Selection =====
-function initializeTemplates() {
-    document.querySelectorAll('.template-card').forEach(card => {
-        card.addEventListener('click', () => {
-            document.querySelectorAll('.template-card').forEach(c => c.classList.remove('selected'));
-            card.classList.add('selected');
-            state.selectedTemplate = card.dataset.template;
-            applyTemplate(state.selectedTemplate);
-        });
-    });
-}
+// ===== Update Problems Based on Category =====
+function updateProblemsForCategory(category) {
+    const problemChips = document.getElementById('problem-chips');
+    const problemHint = document.getElementById('problem-hint');
 
-function applyTemplate(templateId) {
-    const templates = {
-        translator: {
-            bigIdea: 'AIを活用したリアルタイム翻訳ツールで、言語の壁を越えたコミュニケーションを実現します。誰でも簡単に多言語でのコラボレーションができるようになります。',
-            vision: '・リアルタイム音声/テキスト翻訳\n・100以上の言語に対応\n・文脈を理解したAI翻訳で自然な表現\n・シンプルで直感的なUI\n・API連携で既存システムに統合可能',
-            impact: '・言語の壁で困っている旅行者や留学生\n・多国籍チームで働くビジネスパーソン\n・外国語学習中の学生\nコミュニケーションの障壁をなくし、世界中の人々がより簡単につながれるようになります。',
-            gamePlan: 'フェーズ1: Amazon Transcribeで音声認識の実装\nフェーズ2: Amazon Bedrockで文脈理解と翻訳処理\nフェーズ3: Amazon Pollyで音声合成\nフェーズ4: React/Next.jsでフロントエンド構築\nフェーズ5: AWS Amplifyでデプロイ\nフェーズ6: ユーザーテストとフィードバック収集'
-        },
-        assistant: {
-            bigIdea: '特定業務に特化したAIアシスタントで、日々の作業を効率化します。自然な対話で複雑なタスクをシンプルにこなせるようになります。',
-            vision: '・自然言語での対話インターフェース\n・業務コンテキストの理解と記憶\n・ドキュメント検索と要約機能\n・タスクの自動化と提案\n・セキュアなデータ管理',
-            impact: '・繰り返し作業に時間を取られている社員\n・情報検索に時間がかかっているチーム\n・新入社員のオンボーディング支援\n生産性の向上と、より創造的な仕事への集中を実現します。',
-            gamePlan: 'フェーズ1: Amazon Bedrockで対話エンジン構築\nフェーズ2: Amazon Kendraでナレッジベース構築\nフェーズ3: AWS Lambdaでバックエンド処理\nフェーズ4: Amazon DynamoDBでデータ管理\nフェーズ5: フロントエンドUI開発\nフェーズ6: テストと改善'
-        },
-        analyzer: {
-            bigIdea: 'AIでデータ分析を民主化し、誰でも簡単にインサイトを得られるツールを作ります。専門知識がなくても、自然言語で質問するだけでデータを理解できます。',
-            vision: '・自然言語でのデータクエリ\n・自動的なグラフ・チャート生成\n・トレンド分析と予測機能\n・レポート自動生成\n・複数データソースの統合',
-            impact: '・データ分析スキルを持たないビジネスユーザー\n・意思決定に時間がかかっている経営者\n・レポート作成に追われるアナリスト\nデータドリブンな意思決定を、すべての人に開放します。',
-            gamePlan: 'フェーズ1: Amazon Bedrockで自然言語処理\nフェーズ2: Amazon Athenaでデータクエリ\nフェーズ3: Amazon QuickSightで可視化\nフェーズ4: AWS Glueでデータ統合\nフェーズ5: ダッシュボードUI開発\nフェーズ6: セキュリティとアクセス管理'
-        },
-        generator: {
-            bigIdea: 'AIを活用したコンテンツ生成ツールで、クリエイティブな作業を加速します。アイデアから完成品まで、AIがサポートします。',
-            vision: '・テキスト/画像/コードの生成\n・ブランドガイドラインに沿った出力\n・複数バリエーションの提案\n・編集・微調整機能\n・チームコラボレーション',
-            impact: '・コンテンツ制作に時間がかかっているマーケター\n・クリエイティブなアイデアに行き詰まっているデザイナー\n・効率化を求める開発チーム\n創造性を解放し、より価値の高い仕事に集中できます。',
-            gamePlan: 'フェーズ1: Amazon Bedrockでテキスト生成\nフェーズ2: Amazon Titan Imageで画像生成\nフェーズ3: プロンプトテンプレート管理\nフェーズ4: バージョン管理とコラボ機能\nフェーズ5: フロントエンド開発\nフェーズ6: ワークフロー統合'
-        }
-    };
+    if (!problemChips) return;
 
-    if (templates[templateId]) {
-        const template = templates[templateId];
-        document.getElementById('big-idea').value = template.bigIdea;
-        document.getElementById('vision').value = template.vision;
-        document.getElementById('impact').value = template.impact;
-        document.getElementById('game-plan').value = template.gamePlan;
+    // Clear existing problems
+    problemChips.innerHTML = '';
+    state.selectedProblems = [];
 
-        updateCharCount('big-idea');
-        updateCharCount('vision');
-        updateCharCount('impact');
-        updateCharCount('game-plan');
+    // Get problems for this category
+    const problems = categoryProblems[category] || [];
 
-        state.formData.bigIdea = template.bigIdea;
-        state.formData.vision = template.vision;
-        state.formData.impact = template.impact;
-        state.formData.gamePlan = template.gamePlan;
+    if (problems.length === 0) {
+        problemHint.textContent = 'このカテゴリの課題はありません';
+        problemHint.classList.remove('hidden');
+        return;
     }
+
+    // Hide hint
+    problemHint.classList.add('hidden');
+
+    // Create problem chips
+    problems.forEach(problem => {
+        const chip = document.createElement('button');
+        chip.className = 'chip problem-chip';
+        chip.dataset.problem = problem.id;
+        chip.textContent = problem.label;
+        chip.addEventListener('click', () => {
+            chip.classList.toggle('selected');
+            if (chip.classList.contains('selected')) {
+                state.selectedProblems.push(problem.label);
+            } else {
+                state.selectedProblems = state.selectedProblems.filter(p => p !== problem.label);
+            }
+        });
+        problemChips.appendChild(chip);
+    });
+
+    // Add custom input option
+    const customChip = document.createElement('button');
+    customChip.className = 'chip problem-chip';
+    customChip.dataset.problem = 'custom';
+    customChip.textContent = '✏️ 自分で入力';
+    customChip.addEventListener('click', () => {
+        customChip.classList.toggle('selected');
+        document.getElementById('custom-problem').classList.toggle('hidden');
+    });
+    problemChips.appendChild(customChip);
 }
 
 // ===== Textarea Handling =====

@@ -45,30 +45,21 @@
             <p class="section-desc">カテゴリと課題を選んで、AIにアイデアを提案してもらおう！</p>
 
             <div class="category-selector">
-                <h3>カテゴリを選択</h3>
-                <div class="category-chips">
-                    <button class="chip" data-category="healthcare">🏥 ヘルスケア</button>
-                    <button class="chip" data-category="education">📚 教育</button>
-                    <button class="chip" data-category="sustainability">🌱 環境・サステナビリティ</button>
-                    <button class="chip" data-category="productivity">⚡ 生産性向上</button>
-                    <button class="chip" data-category="accessibility">♿ アクセシビリティ</button>
-                    <button class="chip" data-category="entertainment">🎮 エンターテイメント</button>
-                    <button class="chip" data-category="finance">💰 金融・フィンテック</button>
-                    <button class="chip" data-category="social">🤝 ソーシャルグッド</button>
+                <h3>カテゴリを選択（1つ選んでね）</h3>
+                <div class="category-chips" id="category-chips">
+                    <button class="chip category-chip" data-category="workplace-efficiency">💼 業務効率化</button>
+                    <button class="chip category-chip" data-category="daily-life">🏠 日常生活の向上</button>
+                    <button class="chip category-chip" data-category="commercial">🏪 商用ソリューション</button>
+                    <button class="chip category-chip" data-category="social-impact">🌍 社会貢献</button>
+                    <button class="chip category-chip" data-category="creative">🎨 クリエイティブ表現</button>
                 </div>
             </div>
 
             <div class="problem-selector">
-                <h3>解決したい課題は？</h3>
+                <h3>解決したい課題は？（複数選択OK）</h3>
+                <p class="hint" id="problem-hint">まずカテゴリを選択してください</p>
                 <div class="problem-chips" id="problem-chips">
-                    <button class="chip" data-problem="language-barrier">🌐 言語の壁</button>
-                    <button class="chip" data-problem="information-overload">📊 情報過多</button>
-                    <button class="chip" data-problem="manual-work">✍️ 手作業の多さ</button>
-                    <button class="chip" data-problem="accessibility-gap">🔓 アクセスの格差</button>
-                    <button class="chip" data-problem="cost">💸 コストの問題</button>
-                    <button class="chip" data-problem="time">⏰ 時間不足</button>
-                    <button class="chip" data-problem="skill-gap">📈 スキルギャップ</button>
-                    <button class="chip" data-problem="custom">✏️ 自分で入力</button>
+                    <!-- Problems will be dynamically populated based on category -->
                 </div>
                 <textarea id="custom-problem" class="hidden" placeholder="解決したい課題を自由に入力してください..."></textarea>
             </div>
@@ -86,47 +77,6 @@
                         <h4>💡 AIからの提案</h4>
                         <div class="suggestion-content" id="ai-suggestion-content"></div>
                         <button class="btn-use-suggestion" onclick="useSuggestion()">この提案を使う →</button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="idea-templates">
-                <h3>💭 または、テンプレートから選ぶ</h3>
-                <div class="template-cards" id="template-cards">
-                    <div class="template-card" data-template="translator">
-                        <div class="template-icon">🗣️</div>
-                        <div class="template-content">
-                            <h4>AIリアルタイム翻訳</h4>
-                            <p>言語の壁を越えるコミュニケーションツール</p>
-                        </div>
-                    </div>
-                    <div class="template-card" data-template="assistant">
-                        <div class="template-icon">🤖</div>
-                        <div class="template-content">
-                            <h4>AIアシスタント</h4>
-                            <p>特定業務を効率化するスマートアシスタント</p>
-                        </div>
-                    </div>
-                    <div class="template-card" data-template="analyzer">
-                        <div class="template-icon">📈</div>
-                        <div class="template-content">
-                            <h4>データ分析ツール</h4>
-                            <p>AIで複雑なデータを分かりやすく可視化</p>
-                        </div>
-                    </div>
-                    <div class="template-card" data-template="generator">
-                        <div class="template-icon">✨</div>
-                        <div class="template-content">
-                            <h4>コンテンツ生成</h4>
-                            <p>AIでクリエイティブな作業を支援</p>
-                        </div>
-                    </div>
-                    <div class="template-card" data-template="custom">
-                        <div class="template-icon">🎨</div>
-                        <div class="template-content">
-                            <h4>オリジナルアイデア</h4>
-                            <p>自分だけのユニークなアイデアを入力</p>
-                        </div>
                     </div>
                 </div>
             </div>
