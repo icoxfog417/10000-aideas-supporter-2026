@@ -23,7 +23,7 @@
             <p class="subtitle">母国語で入力 → 英語に翻訳 → コンテストに応募！</p>
         </header>
 
-        <!-- Progress Steps -->
+        <!-- Progress Steps (3 steps now) -->
         <div class="progress-bar">
             <div class="step active" data-step="1">
                 <span class="step-number">1</span>
@@ -35,18 +35,14 @@
             </div>
             <div class="step" data-step="3">
                 <span class="step-number">3</span>
-                <span class="step-label">翻訳</span>
-            </div>
-            <div class="step" data-step="4">
-                <span class="step-number">4</span>
                 <span class="step-label">完成！</span>
             </div>
         </div>
 
-        <!-- Step 1: Idea Selection -->
+        <!-- Step 1: Idea Selection with AI Suggestion -->
         <section id="step1" class="form-section active">
             <h2>💡 どんなアイデアを応募する？</h2>
-            <p class="section-desc">気になる課題やトピックを選んでね！複数選択OK</p>
+            <p class="section-desc">カテゴリと課題を選んで、AIにアイデアを提案してもらおう！</p>
 
             <div class="category-selector">
                 <h3>カテゴリを選択</h3>
@@ -65,7 +61,6 @@
             <div class="problem-selector">
                 <h3>解決したい課題は？</h3>
                 <div class="problem-chips" id="problem-chips">
-                    <!-- Dynamically populated based on category -->
                     <button class="chip" data-problem="language-barrier">🌐 言語の壁</button>
                     <button class="chip" data-problem="information-overload">📊 情報過多</button>
                     <button class="chip" data-problem="manual-work">✍️ 手作業の多さ</button>
@@ -78,8 +73,25 @@
                 <textarea id="custom-problem" class="hidden" placeholder="解決したい課題を自由に入力してください..."></textarea>
             </div>
 
+            <!-- AI Idea Suggestion Section -->
+            <div class="ai-suggestion-section">
+                <h3>🤖 AIにアイデアを提案してもらう</h3>
+                <p class="hint">選択したカテゴリと課題を基に、AIがアイデアを提案します</p>
+                <button class="btn-ai-suggest" id="ai-suggest-btn" onclick="generateAiSuggestion()">
+                    <span class="btn-text">✨ AIでアイデアを生成</span>
+                    <span class="btn-loading hidden">生成中...</span>
+                </button>
+                <div class="ai-suggestion-result hidden" id="ai-suggestion-result">
+                    <div class="suggestion-card">
+                        <h4>💡 AIからの提案</h4>
+                        <div class="suggestion-content" id="ai-suggestion-content"></div>
+                        <button class="btn-use-suggestion" onclick="useSuggestion()">この提案を使う →</button>
+                    </div>
+                </div>
+            </div>
+
             <div class="idea-templates">
-                <h3>💭 アイデアのヒント（クリックで選択）</h3>
+                <h3>💭 または、テンプレートから選ぶ</h3>
                 <div class="template-cards" id="template-cards">
                     <div class="template-card" data-template="translator">
                         <div class="template-icon">🗣️</div>
@@ -127,7 +139,7 @@
         <!-- Step 2: Detail Input -->
         <section id="step2" class="form-section">
             <h2>📝 アイデアの詳細を教えて！</h2>
-            <p class="section-desc">日本語でOK！後でKiroが英語に翻訳するよ</p>
+            <p class="section-desc">日本語でOK！Kiroが英語に翻訳するよ</p>
 
             <div class="form-group">
                 <label for="team-name">チーム名</label>
@@ -207,102 +219,22 @@
                 </div>
             </div>
 
-            <div class="btn-group">
-                <button class="btn-secondary" onclick="goToStep(1)">← 戻る</button>
-                <button class="btn-primary next-btn" onclick="goToStep(3)">翻訳する →</button>
-            </div>
-        </section>
-
-        <!-- Step 3: Translation -->
-        <section id="step3" class="form-section">
-            <h2>🌐 英語に翻訳しよう！</h2>
-            <p class="section-desc" id="step3-desc">AWS認証情報を入力して翻訳ボタンを押してね（Amazon Bedrock使用）</p>
-
-            <div class="api-settings" id="api-settings-form">
-                <div class="form-group">
-                    <label for="lambda-function-url">Lambda Function URL</label>
-                    <input type="text" id="lambda-function-url" placeholder="https://xxxxx.lambda-url.ap-northeast-1.on.aws/">
-                    <p class="hint">CDKデプロイ後に出力されるURLを入力してください</p>
-                </div>
-
-                <div class="form-group">
-                    <label for="bedrock-region">リージョン</label>
-                    <select id="bedrock-region">
-                        <option value="ap-northeast-1">ap-northeast-1 (東京)</option>
-                        <option value="us-east-1">us-east-1</option>
-                        <option value="us-west-2">us-west-2</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="aws-access-key">AWS Access Key ID</label>
-                    <input type="text" id="aws-access-key" placeholder="AKIA...">
-                </div>
-
-                <div class="form-group">
-                    <label for="aws-secret-key">AWS Secret Access Key</label>
-                    <input type="password" id="aws-secret-key" placeholder="シークレットキー">
-                </div>
-
-                <div class="form-group">
-                    <label for="aws-session-token">Session Token（一時認証の場合のみ）</label>
-                    <input type="password" id="aws-session-token" placeholder="オプション">
-                    <p class="hint">🔒 認証情報はSigV4署名のみに使用され、ブラウザに保存されません</p>
-                </div>
-
-                <div class="form-group model-selector-section">
-                    <label>翻訳モデルを選択</label>
-                    <div class="model-selector" id="model-selector">
-                        <button class="model-chip" data-model="amazon.nova-lite-v1:0" data-mood="nova">
-                            <span class="model-name">Nova Lite</span>
-                            <span class="model-desc">超高速・最安</span>
-                        </button>
-                        <button class="model-chip selected" data-model="amazon.nova-pro-v1:0" data-mood="nova">
-                            <span class="model-name">Nova Pro</span>
-                            <span class="model-desc">バランス型</span>
-                        </button>
-                        <button class="model-chip" data-model="anthropic.claude-3-5-haiku-20241022-v1:0" data-mood="claude">
-                            <span class="model-name">Claude Haiku</span>
-                            <span class="model-desc">高品質</span>
-                        </button>
-                        <button class="model-chip" data-model="us.amazon.nova-lite-v1:0" data-mood="nova">
-                            <span class="model-name">Nova Lite (Cross)</span>
-                            <span class="model-desc">クロスリージョン</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="translation-preview">
-                <h3>📋 翻訳プレビュー</h3>
-                <div class="preview-card">
-                    <div class="preview-header">
-                        <span class="preview-lang">日本語</span>
-                        <span class="preview-arrow">→</span>
-                        <span class="preview-lang">English</span>
-                    </div>
-                    <div class="preview-content" id="translation-preview">
-                        入力した内容がここに表示されます...
-                    </div>
-                </div>
-            </div>
-
             <div class="kiro-encouragement">
                 <img src="assets/kiro-icon.svg" alt="Kiro" class="kiro-small">
-                <p>翻訳はプロンプトエンジニアリングで最適化済み！<br>コンテスト向けに自然な英語に仕上げるよ ✨</p>
+                <p>入力内容をAmazon Bedrockで英語に翻訳するよ！<br>コンテスト向けに自然な英語に仕上げます ✨</p>
             </div>
 
             <div class="btn-group">
-                <button class="btn-secondary" onclick="goToStep(2)">← 戻る</button>
-                <button class="btn-primary translate-btn" onclick="translateAll()" id="translate-btn">
-                    <span class="btn-text">🚀 翻訳開始！</span>
+                <button class="btn-secondary" onclick="goToStep(1)">← 戻る</button>
+                <button class="btn-primary translate-btn" onclick="translateAndComplete()" id="translate-btn">
+                    <span class="btn-text">🚀 翻訳して完成！</span>
                     <span class="btn-loading hidden">翻訳中...</span>
                 </button>
             </div>
         </section>
 
-        <!-- Step 4: Result -->
-        <section id="step4" class="form-section">
+        <!-- Step 3: Result (was Step 4) -->
+        <section id="step3" class="form-section">
             <h2>🎉 完成！</h2>
             <p class="section-desc">下の内容をコピーしてコンテストフォームに貼り付けてね</p>
 
@@ -392,24 +324,5 @@
     <script src="config.js"></script>
     <script src="sigv4.js"></script>
     <script src="app.js"></script>
-    <script>
-        // Hide API settings form if CloudFront API is configured
-        document.addEventListener('DOMContentLoaded', function() {
-            const config = window.APP_CONFIG || {};
-            const hasCloudFrontApi = config.apiEndpoint && !config.apiEndpoint.includes('__');
-
-            if (hasCloudFrontApi) {
-                const apiSettingsForm = document.getElementById('api-settings-form');
-                const step3Desc = document.getElementById('step3-desc');
-
-                if (apiSettingsForm) {
-                    apiSettingsForm.style.display = 'none';
-                }
-                if (step3Desc) {
-                    step3Desc.textContent = '翻訳ボタンを押してね（Amazon Bedrock使用）';
-                }
-            }
-        });
-    </script>
 </body>
 </html>

@@ -11,10 +11,11 @@ import * as path from "path";
 
 export class KiroTranslatorStack extends cdk.Stack {
     constructor(scope: Construct, id: string, props?: cdk.StackProps) {
-        super(scope, id, props);
-
-        // Secret header value for CloudFront -> Lambda validation
-        const secretHeaderValue = `kiro-translator-${this.account}-${Date.now()}`;
+        // Enable cross-region references for Lambda@Edge
+        super(scope, id, {
+            ...props,
+            crossRegionReferences: true,
+        });
 
         // ========================================
         // S3 Bucket for Static Website
@@ -48,8 +49,6 @@ export class KiroTranslatorStack extends cdk.Stack {
             architecture: lambda.Architecture.ARM_64,
             environment: {
                 AWS_NODEJS_CONNECTION_REUSE_ENABLED: "1",
-                // Secret header for CloudFront validation
-                CLOUDFRONT_SECRET_HEADER: secretHeaderValue,
             },
         });
 
@@ -66,23 +65,54 @@ export class KiroTranslatorStack extends cdk.Stack {
         );
 
         // ========================================
-        // Lambda Function URL with NO Auth (CloudFront handles access)
+        // Lambda Function URL with IAM Auth (SECURE)
         // ========================================
         const functionUrl = bedrockTranslatorFunction.addFunctionUrl({
-            authType: lambda.FunctionUrlAuthType.NONE,
+            authType: lambda.FunctionUrlAuthType.AWS_IAM,
             cors: {
                 allowedOrigins: ["*"],
                 allowedMethods: [lambda.HttpMethod.POST],
-                allowedHeaders: ["Content-Type"],
+                allowedHeaders: [
+                    "Content-Type",
+                    "Authorization",
+                    "X-Amz-Date",
+                    "X-Amz-Security-Token",
+                    "X-Amz-Content-Sha256",
+                ],
                 maxAge: cdk.Duration.hours(1),
             },
         });
+
+        // ========================================
+        // Lambda@Edge for SigV4 Signing (us-east-1)
+        // ========================================
+        const edgeFunction = new cloudfront.experimental.EdgeFunction(this, "EdgeSigner", {
+            functionName: "kiro-edge-signer",
+            runtime: lambda.Runtime.NODEJS_20_X,
+            handler: "index.handler",
+            code: lambda.Code.fromAsset(path.join(__dirname, "../../lambda/edge-signer")),
+            timeout: cdk.Duration.seconds(30),
+        });
+
+        // Grant Lambda@Edge permission to invoke Lambda Function URL
+        edgeFunction.addToRolePolicy(
+            new iam.PolicyStatement({
+                effect: iam.Effect.ALLOW,
+                actions: ["lambda:InvokeFunctionUrl"],
+                resources: [bedrockTranslatorFunction.functionArn],
+                conditions: {
+                    StringEquals: {
+                        "lambda:FunctionUrlAuthType": "AWS_IAM",
+                    },
+                },
+            })
+        );
 
         // Parse Lambda URL to get domain
         const lambdaUrlDomain = cdk.Fn.select(2, cdk.Fn.split("/", functionUrl.url));
 
         // ========================================
-        // CloudFront Distribution
+        // CloudFront Distribution with Lambda@Edge
         // ========================================
         const distribution = new cloudfront.Distribution(this, "Distribution", {
             defaultBehavior: {
@@ -98,14 +128,18 @@ export class KiroTranslatorStack extends cdk.Stack {
                 "/api/*": {
                     origin: new origins.HttpOrigin(lambdaUrlDomain, {
                         protocolPolicy: cloudfront.OriginProtocolPolicy.HTTPS_ONLY,
-                        customHeaders: {
-                            "x-cloudfront-secret": secretHeaderValue,
-                        },
                     }),
                     viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
                     allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
                     cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
                     originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+                    edgeLambdas: [
+                        {
+                            functionVersion: edgeFunction.currentVersion,
+                            eventType: cloudfront.LambdaEdgeEventType.ORIGIN_REQUEST,
+                            includeBody: true,
+                        },
+                    ],
                 },
             },
             defaultRootObject: "index.html",
@@ -137,7 +171,7 @@ export class KiroTranslatorStack extends cdk.Stack {
         });
 
         // ========================================
-        // Deploy config.js (API endpoint only)
+        // Deploy config.js (API endpoint only - no credentials!)
         // ========================================
         const configContent = `// This file is auto-generated during deployment
 window.APP_CONFIG = {
@@ -228,7 +262,7 @@ window.APP_CONFIG = {
 
         new cdk.CfnOutput(this, "APIURL", {
             value: `https://${distribution.distributionDomainName}/api/`,
-            description: "API endpoint (via CloudFront)",
+            description: "API endpoint (via CloudFront + Lambda@Edge)",
         });
 
         new cdk.CfnOutput(this, "S3BucketName", {
