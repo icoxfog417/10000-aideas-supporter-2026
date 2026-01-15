@@ -163,7 +163,7 @@ export class KiroTranslatorStack extends cdk.Stack {
         // ========================================
         // Deploy Frontend to S3
         // ========================================
-        new s3deploy.BucketDeployment(this, "DeployWebsite", {
+        const websiteDeployment = new s3deploy.BucketDeployment(this, "DeployWebsite", {
             sources: [s3deploy.Source.asset(path.join(__dirname, "../../frontend"))],
             destinationBucket: websiteBucket,
             distribution,
@@ -210,7 +210,9 @@ window.APP_CONFIG = {
             ]),
         });
 
+        // Ensure config.js is deployed AFTER the website deployment
         configDeployment.node.addDependency(websiteBucket);
+        configDeployment.node.addDependency(websiteDeployment);
 
         // Invalidate CloudFront cache
         new cr.AwsCustomResource(this, "InvalidateCache", {

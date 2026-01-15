@@ -310,6 +310,103 @@ body {
     border-color: var(--accent-purple);
 }
 
+/* ===== AI Suggestion Section ===== */
+.ai-suggestion-section {
+    background: linear-gradient(135deg, rgba(155,89,182,0.1), rgba(78,205,196,0.1));
+    border: 2px solid var(--accent-purple);
+    border-radius: var(--border-radius);
+    padding: 25px;
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.ai-suggestion-section h3 {
+    font-size: 1.2rem;
+    margin-bottom: 10px;
+    color: var(--text-primary);
+}
+
+.ai-suggestion-section .hint {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+}
+
+.btn-ai-suggest {
+    background: linear-gradient(135deg, var(--accent-purple), #8e44ad);
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    border-radius: var(--border-radius);
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.btn-ai-suggest:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px rgba(155,89,182,0.4);
+}
+
+.btn-ai-suggest:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-ai-suggest .btn-loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ai-suggestion-result {
+    margin-top: 20px;
+    text-align: left;
+}
+
+.suggestion-card {
+    background: var(--surface-light);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+}
+
+.suggestion-card h4 {
+    background: var(--surface);
+    padding: 15px 20px;
+    font-size: 1rem;
+}
+
+.suggestion-content {
+    padding: 20px;
+    font-size: 0.95rem;
+    line-height: 1.8;
+    white-space: pre-wrap;
+    color: var(--text-secondary);
+}
+
+.btn-use-suggestion {
+    display: block;
+    width: 100%;
+    background: var(--secondary-color);
+    color: var(--background);
+    border: none;
+    padding: 15px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.btn-use-suggestion:hover {
+    background: #45b7aa;
+}
+
 /* ===== Template Cards ===== */
 .template-cards {
     display: grid;
