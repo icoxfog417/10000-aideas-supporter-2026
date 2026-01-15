@@ -90,6 +90,7 @@ export class KiroTranslatorStack extends cdk.Stack {
         // ========================================
         const functionUrl = bedrockTranslatorFunction.addFunctionUrl({
             authType: lambda.FunctionUrlAuthType.AWS_IAM,
+            invokeMode: lambda.InvokeMode.RESPONSE_STREAM,
             cors: {
                 allowedOrigins: ["*"],
                 allowedMethods: [lambda.HttpMethod.POST],

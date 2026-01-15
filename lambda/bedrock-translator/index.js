@@ -3,7 +3,7 @@
  *
  * This function acts as a proxy for Amazon Bedrock API calls.
  * It uses the Converse API for unified model interface.
- * Supports both regular and streaming responses.
+ * Supports true streaming responses using Lambda Response Streaming.
  * Also handles analytics event tracking.
  *
  * Required IAM permissions: bedrock:InvokeModel, bedrock:InvokeModelWithResponseStream, dynamodb:UpdateItem, dynamodb:Scan
@@ -35,7 +35,7 @@ const ANALYTICS_TABLE = process.env.ANALYTICS_TABLE_NAME;
 // CORS headers for browser requests
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
     "Access-Control-Allow-Headers":
         "Content-Type, Authorization, X-Amz-Date, X-Amz-Security-Token, X-Amz-Content-Sha256",
 };
@@ -69,54 +69,6 @@ const handleRegularRequest = async (modelId, message) => {
             usage: response.usage,
             stopReason: response.stopReason,
         }),
-    };
-};
-
-// Streaming handler - collects chunks and sends as SSE
-const handleStreamingRequest = async (modelId, message) => {
-    const messages = [
-        {
-            role: "user",
-            content: [{ text: message }],
-        },
-    ];
-
-    const command = new ConverseStreamCommand({
-        modelId: modelId,
-        messages: messages,
-        inferenceConfig: {
-            maxTokens: 2000,
-            temperature: 0.3,
-        },
-    });
-
-    const response = await bedrockClient.send(command);
-
-    // Collect all text chunks
-    let fullText = "";
-    const chunks = [];
-
-    for await (const event of response.stream) {
-        if (event.contentBlockDelta?.delta?.text) {
-            const text = event.contentBlockDelta.delta.text;
-            fullText += text;
-            chunks.push(text);
-        }
-    }
-
-    // Return as SSE format for frontend parsing
-    const sseData = chunks.map(chunk => `data: ${JSON.stringify({ text: chunk })}\n\n`).join("");
-    const sseEnd = `data: ${JSON.stringify({ done: true, fullText: fullText })}\n\n`;
-
-    return {
-        statusCode: 200,
-        headers: {
-            ...corsHeaders,
-            "Content-Type": "text/event-stream",
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-        },
-        body: sseData + sseEnd,
     };
 };
 
@@ -175,116 +127,155 @@ const getAnalyticsStats = async () => {
     return { success: true, stats };
 };
 
-exports.handler = async (event) => {
-    // Handle preflight OPTIONS requests
-    if (event.requestContext?.http?.method === "OPTIONS") {
-        return {
-            statusCode: 200,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-            body: "",
-        };
-    }
+// Helper to write JSON response to stream
+const writeJsonResponse = (responseStream, statusCode, body) => {
+    const metadata = {
+        statusCode: statusCode,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+    };
+    responseStream = awslambda.HttpResponseStream.from(responseStream, metadata);
+    responseStream.write(JSON.stringify(body));
+    responseStream.end();
+};
 
-    // Get request path for routing
-    const path = event.rawPath || event.requestContext?.http?.path || "/api/invoke";
+// Main handler with streaming support
+exports.handler = awslambda.streamifyResponse(
+    async (event, responseStream, context) => {
+        // Handle preflight OPTIONS requests
+        if (event.requestContext?.http?.method === "OPTIONS") {
+            writeJsonResponse(responseStream, 200, "");
+            return;
+        }
 
-    try {
-        // Route: /api/track - Track analytics event
-        if (path.includes("/api/track")) {
-            const body = typeof event.body === "string" ? JSON.parse(event.body) : event.body;
-            const { eventType } = body;
+        // Get request path for routing
+        const path = event.rawPath || event.requestContext?.http?.path || "/api/invoke";
 
-            if (!eventType) {
-                return {
-                    statusCode: 400,
-                    headers: { ...corsHeaders, "Content-Type": "application/json" },
-                    body: JSON.stringify({ error: "Missing required field: eventType" }),
-                };
+        try {
+            // Route: /api/track - Track analytics event
+            if (path.includes("/api/track")) {
+                const body = typeof event.body === "string" ? JSON.parse(event.body) : event.body;
+                const { eventType } = body;
+
+                if (!eventType) {
+                    writeJsonResponse(responseStream, 400, { error: "Missing required field: eventType" });
+                    return;
+                }
+
+                console.log(`Tracking event: ${eventType}`);
+                const result = await trackEvent(eventType);
+                writeJsonResponse(responseStream, 200, result);
+                return;
             }
 
-            console.log(`Tracking event: ${eventType}`);
-            const result = await trackEvent(eventType);
+            // Route: /api/stats - Get analytics stats
+            if (path.includes("/api/stats")) {
+                console.log("Getting analytics stats");
+                const result = await getAnalyticsStats();
+                writeJsonResponse(responseStream, 200, result);
+                return;
+            }
 
-            return {
+            // Route: /api/invoke - Bedrock invocation (default)
+            const body = typeof event.body === "string" ? JSON.parse(event.body) : event.body;
+            const { modelId, message, stream } = body;
+
+            if (!modelId || !message) {
+                writeJsonResponse(responseStream, 400, { error: "Missing required fields: modelId and message" });
+                return;
+            }
+
+            console.log(`Invoking model: ${modelId}, streaming: ${!!stream}`);
+
+            // Non-streaming request - use regular handler
+            if (!stream) {
+                const result = await handleRegularRequest(modelId, message);
+                const metadata = {
+                    statusCode: result.statusCode,
+                    headers: result.headers,
+                };
+                responseStream = awslambda.HttpResponseStream.from(responseStream, metadata);
+                responseStream.write(result.body);
+                responseStream.end();
+                return;
+            }
+
+            // Streaming request - stream chunks in real-time
+            const messages = [
+                {
+                    role: "user",
+                    content: [{ text: message }],
+                },
+            ];
+
+            const command = new ConverseStreamCommand({
+                modelId: modelId,
+                messages: messages,
+                inferenceConfig: {
+                    maxTokens: 2000,
+                    temperature: 0.3,
+                },
+            });
+
+            const bedrockResponse = await bedrockClient.send(command);
+
+            // Set up SSE response
+            const metadata = {
                 statusCode: 200,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-                body: JSON.stringify(result),
+                headers: {
+                    ...corsHeaders,
+                    "Content-Type": "text/event-stream",
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                },
             };
-        }
+            responseStream = awslambda.HttpResponseStream.from(responseStream, metadata);
 
-        // Route: /api/stats - Get analytics stats
-        if (path.includes("/api/stats")) {
-            console.log("Getting analytics stats");
-            const result = await getAnalyticsStats();
+            // Stream each chunk as it arrives from Bedrock
+            let fullText = "";
+            for await (const chunk of bedrockResponse.stream) {
+                if (chunk.contentBlockDelta?.delta?.text) {
+                    const text = chunk.contentBlockDelta.delta.text;
+                    fullText += text;
+                    // Write SSE format immediately
+                    responseStream.write(`data: ${JSON.stringify({ text: text })}\n\n`);
+                }
+            }
 
-            return {
-                statusCode: 200,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-                body: JSON.stringify(result),
-            };
-        }
+            // Send completion message
+            responseStream.write(`data: ${JSON.stringify({ done: true, fullText: fullText })}\n\n`);
+            responseStream.end();
 
-        // Route: /api/invoke - Bedrock invocation (default)
-        // Parse request body
-        const body =
-            typeof event.body === "string" ? JSON.parse(event.body) : event.body;
+        } catch (error) {
+            console.error("Error:", error);
 
-        const { modelId, message, stream } = body;
+            // Handle specific Bedrock errors
+            let statusCode = 500;
+            let errorMessage = error.message;
 
-        if (!modelId || !message) {
-            return {
-                statusCode: 400,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    error: "Missing required fields: modelId and message",
-                }),
-            };
-        }
+            if (error.name === "ValidationException") {
+                statusCode = 400;
+                errorMessage = `Validation error: ${error.message}`;
+            } else if (error.name === "AccessDeniedException") {
+                statusCode = 403;
+                errorMessage = "Access denied. Check IAM permissions for bedrock:InvokeModel";
+            } else if (error.name === "ResourceNotFoundException") {
+                statusCode = 404;
+                errorMessage = "Model not found. Check if the model is available in your region.";
+            } else if (error.name === "ThrottlingException") {
+                statusCode = 429;
+                errorMessage = "Rate limit exceeded. Please try again later.";
+            } else if (error.name === "ModelTimeoutException") {
+                statusCode = 504;
+                errorMessage = "Model timed out. Please try again.";
+            } else if (error.name === "ServiceQuotaExceededException") {
+                statusCode = 429;
+                errorMessage = "Service quota exceeded. Please try again later.";
+            }
 
-        console.log(`Invoking model: ${modelId}, streaming: ${!!stream}`);
-
-        // Use streaming or regular based on request
-        if (stream) {
-            return await handleStreamingRequest(modelId, message);
-        } else {
-            return await handleRegularRequest(modelId, message);
-        }
-    } catch (error) {
-        console.error("Error:", error);
-
-        // Handle specific Bedrock errors
-        let statusCode = 500;
-        let errorMessage = error.message;
-
-        if (error.name === "ValidationException") {
-            statusCode = 400;
-            errorMessage = `Validation error: ${error.message}`;
-        } else if (error.name === "AccessDeniedException") {
-            statusCode = 403;
-            errorMessage =
-                "Access denied. Check IAM permissions for bedrock:InvokeModel";
-        } else if (error.name === "ResourceNotFoundException") {
-            statusCode = 404;
-            errorMessage =
-                "Model not found. Check if the model is available in your region.";
-        } else if (error.name === "ThrottlingException") {
-            statusCode = 429;
-            errorMessage = "Rate limit exceeded. Please try again later.";
-        } else if (error.name === "ModelTimeoutException") {
-            statusCode = 504;
-            errorMessage = "Model timed out. Please try again.";
-        } else if (error.name === "ServiceQuotaExceededException") {
-            statusCode = 429;
-            errorMessage = "Service quota exceeded. Please try again later.";
-        }
-
-        return {
-            statusCode: statusCode,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-            body: JSON.stringify({
+            writeJsonResponse(responseStream, statusCode, {
                 error: errorMessage,
                 errorType: error.name,
-            }),
-        };
+            });
+        }
     }
-};
+);
