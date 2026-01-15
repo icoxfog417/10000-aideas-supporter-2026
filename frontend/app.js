@@ -6,7 +6,7 @@ const state = {
     selectedTemplate: null,
     selectedAiServices: [],
     selectedOtherServices: [],
-    selectedModel: 'claude-3-5-haiku-20241022', // Default model
+    selectedModel: 'amazon.nova-pro-v1:0', // Default model
     formData: {
         teamName: '',
         bigIdea: '',
@@ -15,33 +15,6 @@ const state = {
         gamePlan: ''
     },
     translatedData: {}
-};
-
-// ===== Model Configuration =====
-const modelConfig = {
-    anthropic: {
-        models: [
-            { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', desc: '高速・低コスト', mood: 'claude' }
-        ],
-        default: 'claude-3-5-haiku-20241022'
-    },
-    openai: {
-        models: [
-            { id: 'gpt-4o-mini', name: 'GPT-4o-mini', desc: '高速・低コスト', mood: 'claude' }
-        ],
-        default: 'gpt-4o-mini'
-    },
-    bedrock: {
-        models: [
-            { id: 'anthropic.claude-3-5-haiku-20241022-v1:0', name: 'Claude 3.5 Haiku', desc: '高速・低コスト', mood: 'claude' },
-            { id: 'amazon.nova-lite-v1:0', name: 'Amazon Nova Lite', desc: '超高速・最安', mood: 'nova' },
-            { id: 'amazon.nova-pro-v1:0', name: 'Amazon Nova Pro', desc: 'バランス型', mood: 'nova' },
-            { id: 'amazon.titan-text-lite-v1', name: 'Amazon Titan Lite', desc: 'AWS純正', mood: 'titan' },
-            { id: 'meta.llama3-8b-instruct-v1:0', name: 'Llama 3 8B', desc: 'オープンソース', mood: 'llama' },
-            { id: 'mistral.mistral-7b-instruct-v0:2', name: 'Mistral 7B', desc: '欧州産', mood: 'mistral' }
-        ],
-        default: 'amazon.nova-lite-v1:0'
-    }
 };
 
 // ===== Kiro Messages =====
@@ -57,8 +30,8 @@ const kiroMessages = {
         'いい感じ！続けて！'
     ],
     step3: [
-        '翻訳の準備はバッチリ？',
-        'APIキーを入れてね！',
+        'AWS認証情報を入れてね！',
+        'Bedrockで翻訳するよ！',
         '英語に変身させるよ！'
     ],
     step4: [
@@ -100,13 +73,41 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeChips();
     initializeTemplates();
     initializeTextareas();
-    initializeApiSettings();
+    initializeModelSelector();
     updateKiroMessage();
 });
 
+// ===== Model Selector =====
+function initializeModelSelector() {
+    const modelSelector = document.getElementById('model-selector');
+    if (!modelSelector) return;
+
+    modelSelector.querySelectorAll('.model-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            modelSelector.querySelectorAll('.model-chip').forEach(c => c.classList.remove('selected'));
+            chip.classList.add('selected');
+            state.selectedModel = chip.dataset.model;
+            updateKiroMood(chip.dataset.mood);
+        });
+    });
+}
+
+function updateKiroMood(mood) {
+    const kiroIcons = document.querySelectorAll('.kiro-icon');
+
+    kiroIcons.forEach(icon => {
+        icon.classList.remove('mood-claude', 'mood-nova', 'mood-titan', 'mood-llama', 'mood-mistral');
+        icon.classList.add(`mood-${mood}`);
+    });
+
+    const messageElement = document.getElementById('kiro-message');
+    if (messageElement && kiroMessages.models[mood]) {
+        messageElement.textContent = kiroMessages.models[mood];
+    }
+}
+
 // ===== Chip Selection =====
 function initializeChips() {
-    // Category chips
     document.querySelectorAll('.category-chips .chip').forEach(chip => {
         chip.addEventListener('click', () => {
             chip.classList.toggle('selected');
@@ -116,11 +117,9 @@ function initializeChips() {
             } else {
                 state.selectedCategories = state.selectedCategories.filter(c => c !== category);
             }
-            updateProblemChips();
         });
     });
 
-    // Problem chips
     document.querySelectorAll('.problem-chips .chip').forEach(chip => {
         chip.addEventListener('click', () => {
             if (chip.dataset.problem === 'custom') {
@@ -138,7 +137,6 @@ function initializeChips() {
         });
     });
 
-    // Service chips
     document.querySelectorAll('.service-chip').forEach(chip => {
         chip.addEventListener('click', () => {
             chip.classList.toggle('selected');
@@ -169,8 +167,6 @@ function initializeTemplates() {
             document.querySelectorAll('.template-card').forEach(c => c.classList.remove('selected'));
             card.classList.add('selected');
             state.selectedTemplate = card.dataset.template;
-
-            // Auto-fill based on template
             applyTemplate(state.selectedTemplate);
         });
     });
@@ -211,13 +207,11 @@ function applyTemplate(templateId) {
         document.getElementById('impact').value = template.impact;
         document.getElementById('game-plan').value = template.gamePlan;
 
-        // Update character counts
         updateCharCount('big-idea');
         updateCharCount('vision');
         updateCharCount('impact');
         updateCharCount('game-plan');
 
-        // Store in state
         state.formData.bigIdea = template.bigIdea;
         state.formData.vision = template.vision;
         state.formData.impact = template.impact;
@@ -249,7 +243,6 @@ function updateCharCount(id) {
         const count = element.value.length;
         countElement.textContent = count;
 
-        // Visual feedback for character limits
         const parent = countElement.parentElement;
         const maxLength = parseInt(element.getAttribute('maxlength')) || 0;
 
@@ -267,104 +260,12 @@ function updateCharCount(id) {
     }
 }
 
-// ===== API Settings =====
-function initializeApiSettings() {
-    const providerSelect = document.getElementById('api-provider');
-
-    providerSelect.addEventListener('change', () => {
-        const provider = providerSelect.value;
-        const bedrockSettings = document.querySelector('.bedrock-settings');
-
-        if (provider === 'bedrock') {
-            bedrockSettings.classList.remove('hidden');
-            renderModelSelector();
-        } else {
-            bedrockSettings.classList.add('hidden');
-            // Set default model for non-Bedrock providers
-            state.selectedModel = modelConfig[provider].default;
-        }
-
-        // Update Kiro's mood based on provider
-        updateKiroMood(provider);
-    });
-}
-
-function renderModelSelector() {
-    const bedrockSettings = document.querySelector('.bedrock-settings');
-
-    // Check if model selector already exists
-    let modelSelector = bedrockSettings.querySelector('.model-selector-container');
-    if (modelSelector) {
-        modelSelector.remove();
-    }
-
-    // Create model selector
-    modelSelector = document.createElement('div');
-    modelSelector.className = 'model-selector-container';
-    modelSelector.innerHTML = `
-        <label>モデルを選択</label>
-        <div class="model-selector">
-            ${modelConfig.bedrock.models.map(model => `
-                <button class="model-chip ${state.selectedModel === model.id ? 'selected' : ''}"
-                        data-model="${model.id}" data-mood="${model.mood}">
-                    <span class="model-name">${model.name}</span>
-                    <span class="model-desc">${model.desc}</span>
-                </button>
-            `).join('')}
-        </div>
-    `;
-
-    bedrockSettings.appendChild(modelSelector);
-
-    // Add click handlers
-    modelSelector.querySelectorAll('.model-chip').forEach(chip => {
-        chip.addEventListener('click', () => {
-            modelSelector.querySelectorAll('.model-chip').forEach(c => c.classList.remove('selected'));
-            chip.classList.add('selected');
-            state.selectedModel = chip.dataset.model;
-
-            // Update Kiro's mood based on model
-            updateKiroMood('bedrock', chip.dataset.mood);
-        });
-    });
-}
-
-function updateKiroMood(provider, mood = null) {
-    const kiroIcons = document.querySelectorAll('.kiro-icon');
-
-    // Determine mood based on provider or specific mood
-    let finalMood = mood;
-    if (!finalMood) {
-        if (provider === 'anthropic' || provider === 'openai') {
-            finalMood = 'claude';
-        } else if (provider === 'bedrock') {
-            // Get mood from selected model
-            const selectedModel = modelConfig.bedrock.models.find(m => m.id === state.selectedModel);
-            finalMood = selectedModel ? selectedModel.mood : 'nova';
-        }
-    }
-
-    // Remove all mood classes and add new one
-    kiroIcons.forEach(icon => {
-        icon.classList.remove('mood-claude', 'mood-nova', 'mood-titan', 'mood-llama', 'mood-mistral');
-        icon.classList.add(`mood-${finalMood}`);
-    });
-
-    // Update Kiro's message
-    const messageElement = document.getElementById('kiro-message');
-    if (messageElement && kiroMessages.models[finalMood]) {
-        messageElement.textContent = kiroMessages.models[finalMood];
-    }
-}
-
 // ===== Navigation =====
 function goToStep(step) {
-    // Validate before moving forward
     if (step > state.currentStep && !validateCurrentStep()) {
         return;
     }
 
-    // Update step classes
     document.querySelectorAll('.step').forEach((stepEl, index) => {
         stepEl.classList.remove('active', 'completed');
         if (index + 1 < step) {
@@ -374,24 +275,18 @@ function goToStep(step) {
         }
     });
 
-    // Show/hide sections
     document.querySelectorAll('.form-section').forEach(section => {
         section.classList.remove('active');
     });
     document.getElementById(`step${step}`).classList.add('active');
 
-    // Update state
     state.currentStep = step;
-
-    // Update Kiro message
     updateKiroMessage();
 
-    // Special handling for step 3 (preview)
     if (step === 3) {
         updateTranslationPreview();
     }
 
-    // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -428,32 +323,18 @@ function updateTranslationPreview() {
     }
 }
 
-function updateProblemChips() {
-    // Could dynamically update problems based on selected categories
-    // For now, keep all problems visible
-}
-
 // ===== Translation =====
 async function translateAll() {
-    const apiKey = document.getElementById('api-key').value.trim();
-    const provider = document.getElementById('api-provider').value;
+    const lambdaUrl = document.getElementById('lambda-function-url').value.trim();
+    const accessKey = document.getElementById('aws-access-key').value.trim();
+    const secretKey = document.getElementById('aws-secret-key').value.trim();
 
-    // Validate based on provider
-    if (provider === 'bedrock') {
-        const lambdaUrl = document.getElementById('lambda-function-url').value.trim();
-        const accessKey = document.getElementById('aws-access-key').value.trim();
-        const secretKey = document.getElementById('aws-secret-key').value.trim();
-
-        if (!lambdaUrl) {
-            showToast('Lambda Function URLを入力してください', 'error');
-            return;
-        }
-        if (!accessKey || !secretKey) {
-            showToast('AWS認証情報を入力してください', 'error');
-            return;
-        }
-    } else if (!apiKey) {
-        showToast('APIキーを入力してください', 'error');
+    if (!lambdaUrl) {
+        showToast('Lambda Function URLを入力してください', 'error');
+        return;
+    }
+    if (!accessKey || !secretKey) {
+        showToast('AWS認証情報を入力してください', 'error');
         return;
     }
 
@@ -461,13 +342,11 @@ async function translateAll() {
     const btnText = translateBtn.querySelector('.btn-text');
     const btnLoading = translateBtn.querySelector('.btn-loading');
 
-    // Show loading state
     btnText.classList.add('hidden');
     btnLoading.classList.remove('hidden');
     translateBtn.disabled = true;
 
     try {
-        // Translate each field
         const fields = [
             { key: 'bigIdea', elementId: 'big-idea', limit: 500 },
             { key: 'vision', elementId: 'vision', limit: 1000 },
@@ -478,107 +357,38 @@ async function translateAll() {
         for (const field of fields) {
             const content = document.getElementById(field.elementId).value.trim();
             if (content) {
-                const translated = await translateText(content, field.limit, apiKey, provider);
+                const translated = await translateText(content, field.limit);
                 state.translatedData[field.key] = translated;
             }
         }
 
-        // Team name (usually doesn't need translation but clean it up)
         state.translatedData.teamName = document.getElementById('team-name').value.trim();
-
-        // Services don't need translation
         state.translatedData.aiServices = state.selectedAiServices.join(', ');
         state.translatedData.otherServices = state.selectedOtherServices.join(', ');
 
-        // Update results
         updateResults();
-
-        // Go to step 4
         goToStep(4);
-
         showToast('翻訳完了！');
 
     } catch (error) {
         console.error('Translation error:', error);
         showToast(`翻訳エラー: ${error.message}`, 'error');
     } finally {
-        // Reset button state
         btnText.classList.remove('hidden');
         btnLoading.classList.add('hidden');
         translateBtn.disabled = false;
     }
 }
 
-async function translateText(content, charLimit, apiKey, provider) {
+async function translateText(content, charLimit) {
     const prompt = translationPrompt
         .replace('{charLimit}', charLimit)
         .replace('{content}', content);
 
-    if (provider === 'anthropic') {
-        return await callAnthropicAPI(prompt, apiKey);
-    } else if (provider === 'openai') {
-        return await callOpenAIAPI(prompt, apiKey);
-    } else if (provider === 'bedrock') {
-        return await callBedrockAPI(prompt, apiKey);
-    }
-
-    throw new Error('Unknown provider');
+    return await callBedrockAPI(prompt);
 }
 
-async function callAnthropicAPI(prompt, apiKey) {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true'
-        },
-        body: JSON.stringify({
-            model: 'claude-3-5-haiku-20241022',
-            max_tokens: 2000,
-            messages: [
-                { role: 'user', content: prompt }
-            ]
-        })
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || 'API request failed');
-    }
-
-    const data = await response.json();
-    return data.content[0].text;
-}
-
-async function callOpenAIAPI(prompt, apiKey) {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [
-                { role: 'user', content: prompt }
-            ],
-            max_tokens: 2000
-        })
-    });
-
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || 'API request failed');
-    }
-
-    const data = await response.json();
-    return data.choices[0].message.content;
-}
-
-async function callBedrockAPI(prompt, apiKey) {
-    // Get Bedrock settings
+async function callBedrockAPI(prompt) {
     const lambdaFunctionUrl = document.getElementById('lambda-function-url').value.trim();
     const region = document.getElementById('bedrock-region').value;
     const accessKeyId = document.getElementById('aws-access-key').value.trim();
@@ -586,15 +396,6 @@ async function callBedrockAPI(prompt, apiKey) {
     const sessionToken = document.getElementById('aws-session-token').value.trim() || null;
     const modelId = state.selectedModel;
 
-    // Validate required fields
-    if (!lambdaFunctionUrl) {
-        throw new Error('Lambda Function URLを入力してください');
-    }
-    if (!accessKeyId || !secretAccessKey) {
-        throw new Error('AWS Access Key IDとSecret Access Keyを入力してください');
-    }
-
-    // Create Bedrock Lambda client with SigV4 signing
     const client = new BedrockLambdaClient({
         functionUrl: lambdaFunctionUrl,
         region: region,
@@ -603,8 +404,6 @@ async function callBedrockAPI(prompt, apiKey) {
         sessionToken: sessionToken
     });
 
-    // Prepare payload for Lambda function
-    // Lambda function should handle the model invocation
     const payload = {
         modelId: modelId,
         message: prompt
@@ -613,12 +412,9 @@ async function callBedrockAPI(prompt, apiKey) {
     try {
         const response = await client.invoke(payload);
 
-        // Parse response based on expected Lambda response format
-        // Lambda should return: { output: "translated text" } or similar
         if (response.output) {
             return response.output;
         } else if (response.content && response.content[0]) {
-            // Anthropic format from Converse API
             return response.content[0].text;
         } else if (response.message) {
             return response.message;
@@ -628,7 +424,6 @@ async function callBedrockAPI(prompt, apiKey) {
 
         throw new Error('Unexpected response format from Lambda');
     } catch (error) {
-        // Check for common errors
         if (error.message.includes('403')) {
             throw new Error('認証エラー: AWS認証情報を確認してください。Lambda Function URLのIAM認証設定も確認してください。');
         } else if (error.message.includes('404')) {
@@ -642,34 +437,28 @@ async function callBedrockAPI(prompt, apiKey) {
 
 // ===== Results =====
 function updateResults() {
-    // Team name
     document.getElementById('result-team-name').textContent = state.translatedData.teamName || '-';
 
-    // Big idea
     const bigIdea = state.translatedData.bigIdea || '-';
     document.getElementById('result-big-idea').textContent = bigIdea;
     document.getElementById('big-idea-chars').textContent = bigIdea.length;
     updateCharIndicator('big-idea-chars', bigIdea.length, 500);
 
-    // Vision
     const vision = state.translatedData.vision || '-';
     document.getElementById('result-vision').textContent = vision;
     document.getElementById('vision-chars').textContent = vision.length;
     updateCharIndicator('vision-chars', vision.length, 1000);
 
-    // Impact
     const impact = state.translatedData.impact || '-';
     document.getElementById('result-impact').textContent = impact;
     document.getElementById('impact-chars').textContent = impact.length;
     updateCharIndicator('impact-chars', impact.length, 1000);
 
-    // Game plan
     const gamePlan = state.translatedData.gamePlan || '-';
     document.getElementById('result-game-plan').textContent = gamePlan;
     document.getElementById('game-plan-chars').textContent = gamePlan.length;
     updateCharIndicator('game-plan-chars', gamePlan.length, 1500);
 
-    // Services
     document.getElementById('result-ai-services').textContent = state.translatedData.aiServices || '-';
     document.getElementById('result-other-services').textContent = state.translatedData.otherServices || '-';
 }
@@ -730,22 +519,18 @@ function copyAllResults() {
 
 // ===== Toast Notification =====
 function showToast(message, type = 'success') {
-    // Remove existing toast
     const existingToast = document.querySelector('.toast');
     if (existingToast) {
         existingToast.remove();
     }
 
-    // Create new toast
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     toast.textContent = message;
     document.body.appendChild(toast);
 
-    // Show toast
     setTimeout(() => toast.classList.add('show'), 10);
 
-    // Hide after 3 seconds
     setTimeout(() => {
         toast.classList.remove('show');
         setTimeout(() => toast.remove(), 300);

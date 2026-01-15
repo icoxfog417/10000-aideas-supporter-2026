@@ -216,45 +216,60 @@
         <!-- Step 3: Translation -->
         <section id="step3" class="form-section">
             <h2>🌐 英語に翻訳しよう！</h2>
-            <p class="section-desc">APIキーを入力して翻訳ボタンを押してね</p>
+            <p class="section-desc">AWS認証情報を入力して翻訳ボタンを押してね（Amazon Bedrock使用）</p>
 
             <div class="api-settings">
                 <div class="form-group">
-                    <label for="api-provider">翻訳エンジン</label>
-                    <select id="api-provider">
-                        <option value="anthropic">Claude (Anthropic) - おすすめ！</option>
-                        <option value="openai">GPT-4o-mini (OpenAI)</option>
-                        <option value="bedrock">Amazon Bedrock</option>
+                    <label for="lambda-function-url">Lambda Function URL</label>
+                    <input type="text" id="lambda-function-url" placeholder="https://xxxxx.lambda-url.ap-northeast-1.on.aws/">
+                    <p class="hint">CDKデプロイ後に出力されるURLを入力してください</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="bedrock-region">リージョン</label>
+                    <select id="bedrock-region">
+                        <option value="ap-northeast-1">ap-northeast-1 (東京)</option>
+                        <option value="us-east-1">us-east-1</option>
+                        <option value="us-west-2">us-west-2</option>
                     </select>
                 </div>
 
                 <div class="form-group">
-                    <label for="api-key">APIキー</label>
-                    <input type="password" id="api-key" placeholder="sk-...">
-                    <p class="hint">🔒 キーはブラウザに保存されず、翻訳のみに使用されます</p>
+                    <label for="aws-access-key">AWS Access Key ID</label>
+                    <input type="text" id="aws-access-key" placeholder="AKIA...">
                 </div>
 
-                <div class="form-group bedrock-settings hidden">
-                    <label for="lambda-function-url">Lambda Function URL</label>
-                    <input type="text" id="lambda-function-url" placeholder="https://xxxxx.lambda-url.ap-northeast-1.on.aws/">
-                    <p class="hint">IAM認証が有効なLambda Function URLを入力してください</p>
-
-                    <label for="bedrock-region" style="margin-top: 15px;">リージョン</label>
-                    <select id="bedrock-region">
-                        <option value="us-east-1">us-east-1</option>
-                        <option value="us-west-2">us-west-2</option>
-                        <option value="ap-northeast-1">ap-northeast-1 (東京)</option>
-                    </select>
-
-                    <label for="aws-access-key" style="margin-top: 15px;">AWS Access Key ID</label>
-                    <input type="text" id="aws-access-key" placeholder="AKIA...">
-
-                    <label for="aws-secret-key" style="margin-top: 10px;">AWS Secret Access Key</label>
+                <div class="form-group">
+                    <label for="aws-secret-key">AWS Secret Access Key</label>
                     <input type="password" id="aws-secret-key" placeholder="シークレットキー">
+                </div>
 
-                    <label for="aws-session-token" style="margin-top: 10px;">Session Token（一時認証の場合）</label>
+                <div class="form-group">
+                    <label for="aws-session-token">Session Token（一時認証の場合のみ）</label>
                     <input type="password" id="aws-session-token" placeholder="オプション">
-                    <p class="hint">🔒 認証情報はSigV4署名のみに使用され、保存されません</p>
+                    <p class="hint">🔒 認証情報はSigV4署名のみに使用され、ブラウザに保存されません</p>
+                </div>
+
+                <div class="form-group model-selector-section">
+                    <label>翻訳モデルを選択</label>
+                    <div class="model-selector" id="model-selector">
+                        <button class="model-chip" data-model="amazon.nova-lite-v1:0" data-mood="nova">
+                            <span class="model-name">Nova Lite</span>
+                            <span class="model-desc">超高速・最安</span>
+                        </button>
+                        <button class="model-chip selected" data-model="amazon.nova-pro-v1:0" data-mood="nova">
+                            <span class="model-name">Nova Pro</span>
+                            <span class="model-desc">バランス型</span>
+                        </button>
+                        <button class="model-chip" data-model="anthropic.claude-3-5-haiku-20241022-v1:0" data-mood="claude">
+                            <span class="model-name">Claude Haiku</span>
+                            <span class="model-desc">高品質</span>
+                        </button>
+                        <button class="model-chip" data-model="us.amazon.nova-lite-v1:0" data-mood="nova">
+                            <span class="model-name">Nova Lite (Cross)</span>
+                            <span class="model-desc">クロスリージョン</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
