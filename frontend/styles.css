@@ -162,6 +162,37 @@ body {
     z-index: 1;
 }
 
+/* ===== Analytics Counter ===== */
+.analytics-counter {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    margin-top: 20px;
+    position: relative;
+    z-index: 1;
+}
+
+.counter-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+
+.counter-number {
+    font-size: 2rem;
+    font-weight: 700;
+    background: linear-gradient(90deg, var(--accent-yellow), var(--secondary-color));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.counter-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
 /* ===== Progress Bar ===== */
 .progress-bar {
     display: flex;
@@ -310,6 +341,119 @@ body {
     border-color: var(--accent-purple);
 }
 
+/* ===== AI Suggestion Section ===== */
+.ai-suggestion-section {
+    background: linear-gradient(135deg, rgba(155,89,182,0.1), rgba(78,205,196,0.1));
+    border: 2px solid var(--accent-purple);
+    border-radius: var(--border-radius);
+    padding: 25px;
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.ai-suggestion-section h3 {
+    font-size: 1.2rem;
+    margin-bottom: 10px;
+    color: var(--text-primary);
+}
+
+.ai-suggestion-section .hint {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+}
+
+.btn-ai-suggest {
+    background: linear-gradient(135deg, var(--accent-purple), #8e44ad);
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    border-radius: var(--border-radius);
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.btn-ai-suggest:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px rgba(155,89,182,0.4);
+}
+
+.btn-ai-suggest:disabled {
+    opacity: 0.9;
+    cursor: wait;
+    transform: none;
+    animation: glow 1.5s ease-in-out infinite;
+}
+
+@keyframes glow {
+    0%, 100% { box-shadow: 0 0 10px rgba(155,89,182,0.4); }
+    50% { box-shadow: 0 0 25px rgba(155,89,182,0.8); }
+}
+
+.btn-ai-suggest .btn-loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-ai-suggest .btn-loading::after {
+    content: '';
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.ai-suggestion-result {
+    margin-top: 20px;
+    text-align: left;
+}
+
+.suggestion-card {
+    background: var(--surface-light);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+}
+
+.suggestion-card h4 {
+    background: var(--surface);
+    padding: 15px 20px;
+    font-size: 1rem;
+}
+
+.suggestion-content {
+    padding: 20px;
+    font-size: 0.95rem;
+    line-height: 1.8;
+    white-space: pre-wrap;
+    color: var(--text-secondary);
+}
+
+.btn-use-suggestion {
+    display: block;
+    width: 100%;
+    background: var(--secondary-color);
+    color: var(--background);
+    border: none;
+    padding: 15px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.btn-use-suggestion:hover {
+    background: #45b7aa;
+}
+
 /* ===== Template Cards ===== */
 .template-cards {
     display: grid;
@@ -421,6 +565,32 @@ body {
 
 .hidden {
     display: none !important;
+}
+
+/* Custom Problem Textarea */
+#custom-problem {
+    width: 100%;
+    background: var(--surface-light);
+    border: 2px solid var(--accent-purple);
+    border-radius: var(--border-radius);
+    padding: 15px;
+    color: var(--text-primary);
+    font-size: 1rem;
+    font-family: inherit;
+    min-height: 100px;
+    resize: vertical;
+    margin-top: 15px;
+    transition: var(--transition);
+}
+
+#custom-problem:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(255,107,107,0.2);
+}
+
+#custom-problem::placeholder {
+    color: var(--text-secondary);
 }
 
 /* ===== Buttons ===== */

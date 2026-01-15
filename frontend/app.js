@@ -3,10 +3,9 @@ const state = {
     currentStep: 1,
     selectedCategories: [],
     selectedProblems: [],
-    selectedTemplate: null,
     selectedAiServices: [],
     selectedOtherServices: [],
-    selectedModel: 'amazon.nova-pro-v1:0', // Default model
+    selectedModel: 'global.anthropic.claude-haiku-4-5-20251001-v1:0', // Default model - Claude Haiku 4.5 inference profile
     formData: {
         teamName: '',
         bigIdea: '',
@@ -22,19 +21,16 @@ const kiroMessages = {
     step1: [
         '一緒にアイデアを形にしよう！',
         'どんなアイデアも大歓迎だよ！',
-        'ワクワクするアイデアを教えて！'
+        'ワクワクするアイデアを教えて！',
+        'AIにアイデア提案してもらおう！'
     ],
     step2: [
         '詳しく教えてくれると嬉しいな！',
         '日本語でOKだよ！',
-        'いい感じ！続けて！'
+        'いい感じ！続けて！',
+        '翻訳はお任せあれ！'
     ],
     step3: [
-        'AWS認証情報を入れてね！',
-        'Bedrockで翻訳するよ！',
-        '英語に変身させるよ！'
-    ],
-    step4: [
         'お疲れ様！素敵なアイデアだね！',
         '完璧！あとは応募するだけ！',
         'コンテスト頑張ってね！'
@@ -47,6 +43,48 @@ const kiroMessages = {
         mistral: 'Mistral選んだね！欧州の技術で翻訳！'
     }
 };
+
+// ===== AI Idea Suggestion Prompt Template (Working Backwards Style) =====
+const ideaSuggestionPrompt = `You are an expert product manager helping generate innovative hackathon ideas using the Amazon Working Backwards methodology. Based on the selected categories and problems, create a compelling project idea for an AWS AI hackathon.
+
+Selected categories: {categories}
+Selected problems to solve: {problems}
+
+=== Available AWS AI Services (use these in your idea) ===
+- Amazon Bedrock: Fully managed service to access foundation models (Claude, Llama, etc.) via API
+- Amazon Bedrock AgentCore: Managed infrastructure for deploying, scaling, and securing AI agents in production. Handles compute, memory, authentication, and observability automatically.
+- Kiro: AI-powered IDE by AWS that uses "specs" (natural language requirements, design docs, task lists) to guide development. Combines AI code generation with structured specifications.
+- Amazon Nova: AWS's own foundation model family offering text, image, and video generation capabilities with excellent cost-performance ratio
+- Amazon SageMaker: Complete ML platform for building, training, and deploying custom machine learning models
+- Strands Agents SDK: Open-source Python SDK for building AI agents. Simple model-agnostic approach with tools, conversation history, and agent loops.
+
+Generate a creative, feasible hackathon project idea in Japanese. The idea should leverage these AWS AI services and be achievable within a hackathon timeframe.
+
+CRITICAL RULES:
+- Do NOT use bullet points (・, -, *) anywhere in your response
+- Write in flowing paragraph style for all sections
+- Be specific and concrete, not generic
+- Actively incorporate the newer AWS AI services (AgentCore, Kiro, Nova, Strands) where appropriate
+
+Output format (in Japanese, with these exact section headers):
+
+プロジェクト名: [catchy and memorable project name]
+
+ビッグアイデア:
+[Follow this format exactly: 「○○な人が××したい時に、△△することができるサービス」- describe WHO the target user is, WHAT they want to do, and WHAT capability they gain]
+
+ビジョン:
+[Describe the functional flow: what the user inputs, what the system processes using which technology, and what output/result is returned. Write as connected sentences, not bullet points. Be specific about the user journey from input to output.]
+
+インパクト:
+[Follow this format: 「いままでは○○するのに××しなければならなかったが、本プロジェクトの■■機能により△△が可能になり、結果として□□という効果を発揮する」- contrast the old way vs the new way and the transformative impact]
+
+実装計画:
+[Create an agile sprint plan with 3-4 sprints. For each sprint, describe what working increment will be delivered. Format as: 「Sprint 1: ○○を実装し動作確認。Sprint 2: ○○機能を追加しエンドツーエンドで動作。Sprint 3: ○○を改善しユーザーテスト実施。」Write as connected text, not bullet points.]
+
+使用AWSサービス: [comma-separated list of AWS services from the available services above]
+
+Only output in this exact format, no other explanations or bullet points.`;
 
 // ===== Translation Prompt Template =====
 const translationPrompt = `You are a professional translator specializing in tech startup pitches and AWS hackathon submissions. Your task is to translate the following content from the source language to natural, professional English suitable for a tech competition submission.
@@ -68,14 +106,110 @@ Content to translate:
 
 Translated English (only output the translation, nothing else):`;
 
+// ===== Category-specific Problems (2025-2026 Trends) =====
+const categoryProblems = {
+    'workplace-efficiency': [
+        { id: 'meeting-notes', label: '📝 議事録・会議要約の自動化' },
+        { id: 'ai-agent', label: '🤖 AIエージェントによるタスク自動化' },
+        { id: 'knowledge-search', label: '🔍 社内ナレッジの検索・要約' },
+        { id: 'code-assist', label: '💻 コード生成・レビュー支援' },
+        { id: 'doc-creation', label: '📄 ドキュメント・メール自動作成' },
+        { id: 'schedule-opt', label: '📅 スケジュール・会議最適化' },
+        { id: 'project-mgmt', label: '📊 プロジェクト管理の効率化' },
+        { id: 'customer-support', label: '💬 カスタマーサポート自動化' },
+        { id: 'data-report', label: '📈 データ分析・レポート生成' },
+        { id: 'multilang-comm', label: '🌐 多言語コミュニケーション' },
+    ],
+    'daily-life': [
+        { id: 'personal-ai', label: '🎯 パーソナルAIアシスタント' },
+        { id: 'health-fitness', label: '💪 健康管理・フィットネス' },
+        { id: 'finance-advice', label: '💰 家計管理・資産運用' },
+        { id: 'recipe-meal', label: '🍳 料理レシピ・献立提案' },
+        { id: 'learning-skill', label: '📚 学習・スキルアップ支援' },
+        { id: 'travel-guide', label: '✈️ 旅行計画・観光ガイド' },
+        { id: 'smart-home', label: '🏠 スマートホーム連携' },
+        { id: 'mental-health', label: '🧘 メンタルヘルスケア' },
+        { id: 'childcare', label: '👶 子育て・育児支援' },
+        { id: 'elderly-care', label: '👴 高齢者見守り・介護' },
+    ],
+    'commercial': [
+        { id: 'ec-personalize', label: '🛒 ECパーソナライズ' },
+        { id: 'demand-forecast', label: '📦 需要予測・在庫最適化' },
+        { id: 'marketing-auto', label: '📣 マーケティング自動化' },
+        { id: 'dynamic-pricing', label: '💲 動的価格設定' },
+        { id: 'fraud-detect', label: '🔒 不正検知・セキュリティ' },
+        { id: 'supply-chain', label: '🚚 サプライチェーン最適化' },
+        { id: 'recommendation', label: '⭐ レコメンデーション' },
+        { id: 'chatbot-sales', label: '🤝 チャットボット接客' },
+        { id: 'ad-optimize', label: '📱 広告・コンテンツ最適化' },
+        { id: 'contract-legal', label: '📋 契約書・法務文書分析' },
+    ],
+    'social-impact': [
+        { id: 'disaster-prevention', label: '🌊 災害予測・防災支援' },
+        { id: 'environment', label: '🌱 環境モニタリング・気候変動' },
+        { id: 'medical-diagnosis', label: '🏥 医療診断支援' },
+        { id: 'education-gap', label: '📖 教育格差の解消' },
+        { id: 'accessibility', label: '♿ アクセシビリティ向上' },
+        { id: 'agriculture', label: '🌾 農業・食料問題' },
+        { id: 'mobility', label: '🚗 交通・移動の最適化' },
+        { id: 'energy', label: '⚡ エネルギー効率化' },
+        { id: 'local-community', label: '🏘️ 地域活性化・まちづくり' },
+        { id: 'multicultural', label: '🤝 多文化共生・言語バリアフリー' },
+    ],
+    'creative': [
+        { id: 'image-video', label: '🖼️ AI画像・動画生成' },
+        { id: 'music-sound', label: '🎵 音楽・サウンド制作' },
+        { id: 'storytelling', label: '📖 ストーリーテリング・脚本' },
+        { id: 'game-interactive', label: '🎮 ゲーム・インタラクティブ' },
+        { id: 'virtual-influencer', label: '👤 バーチャルインフルエンサー' },
+        { id: '3d-metaverse', label: '🌐 3Dモデリング・メタバース' },
+        { id: 'fashion-design', label: '👗 ファッション・デザイン' },
+        { id: 'architecture', label: '🏛️ 建築・インテリアデザイン' },
+        { id: 'art-nft', label: '🎨 アート・NFT制作' },
+        { id: 'personalized-content', label: '✨ パーソナライズドコンテンツ' },
+    ],
+};
+
 // ===== Initialize =====
 document.addEventListener('DOMContentLoaded', () => {
     initializeChips();
-    initializeTemplates();
     initializeTextareas();
     initializeModelSelector();
     updateKiroMessage();
+    loadAnalyticsStats();
 });
+
+// ===== Load Analytics Stats =====
+async function loadAnalyticsStats() {
+    const config = window.APP_CONFIG || {};
+    if (!config.apiEndpoint) return;
+
+    const statsEndpoint = config.apiEndpoint.replace('/invoke', '/stats');
+
+    try {
+        const response = await fetch(statsEndpoint);
+        const data = await response.json();
+
+        if (data.success && data.stats) {
+            const suggestionEl = document.getElementById('suggestion-count');
+            const contestEl = document.getElementById('contest-count');
+
+            if (suggestionEl && data.stats.ai_suggestion_generated) {
+                suggestionEl.textContent = data.stats.ai_suggestion_generated.count;
+            } else if (suggestionEl) {
+                suggestionEl.textContent = '0';
+            }
+
+            if (contestEl && data.stats.contest_page_opened) {
+                contestEl.textContent = data.stats.contest_page_opened.count;
+            } else if (contestEl) {
+                contestEl.textContent = '0';
+            }
+        }
+    } catch (error) {
+        console.warn('Failed to load analytics:', error);
+    }
+}
 
 // ===== Model Selector =====
 function initializeModelSelector() {
@@ -108,35 +242,23 @@ function updateKiroMood(mood) {
 
 // ===== Chip Selection =====
 function initializeChips() {
-    document.querySelectorAll('.category-chips .chip').forEach(chip => {
+    // Category chips - single selection
+    document.querySelectorAll('.category-chip').forEach(chip => {
         chip.addEventListener('click', () => {
-            chip.classList.toggle('selected');
+            // Deselect all other categories
+            document.querySelectorAll('.category-chip').forEach(c => c.classList.remove('selected'));
+            chip.classList.add('selected');
+
             const category = chip.dataset.category;
-            if (chip.classList.contains('selected')) {
-                state.selectedCategories.push(category);
-            } else {
-                state.selectedCategories = state.selectedCategories.filter(c => c !== category);
-            }
+            state.selectedCategories = [category];
+            state.selectedProblems = []; // Reset problems when category changes
+
+            // Update problems based on selected category
+            updateProblemsForCategory(category);
         });
     });
 
-    document.querySelectorAll('.problem-chips .chip').forEach(chip => {
-        chip.addEventListener('click', () => {
-            if (chip.dataset.problem === 'custom') {
-                document.getElementById('custom-problem').classList.toggle('hidden');
-                chip.classList.toggle('selected');
-                return;
-            }
-            chip.classList.toggle('selected');
-            const problem = chip.dataset.problem;
-            if (chip.classList.contains('selected')) {
-                state.selectedProblems.push(problem);
-            } else {
-                state.selectedProblems = state.selectedProblems.filter(p => p !== problem);
-            }
-        });
-    });
-
+    // Service chips
     document.querySelectorAll('.service-chip').forEach(chip => {
         chip.addEventListener('click', () => {
             chip.classList.toggle('selected');
@@ -160,63 +282,56 @@ function initializeChips() {
     });
 }
 
-// ===== Template Selection =====
-function initializeTemplates() {
-    document.querySelectorAll('.template-card').forEach(card => {
-        card.addEventListener('click', () => {
-            document.querySelectorAll('.template-card').forEach(c => c.classList.remove('selected'));
-            card.classList.add('selected');
-            state.selectedTemplate = card.dataset.template;
-            applyTemplate(state.selectedTemplate);
-        });
-    });
-}
+// ===== Update Problems Based on Category =====
+function updateProblemsForCategory(category) {
+    const problemChips = document.getElementById('problem-chips');
+    const problemHint = document.getElementById('problem-hint');
 
-function applyTemplate(templateId) {
-    const templates = {
-        translator: {
-            bigIdea: 'AIを活用したリアルタイム翻訳ツールで、言語の壁を越えたコミュニケーションを実現します。誰でも簡単に多言語でのコラボレーションができるようになります。',
-            vision: '・リアルタイム音声/テキスト翻訳\n・100以上の言語に対応\n・文脈を理解したAI翻訳で自然な表現\n・シンプルで直感的なUI\n・API連携で既存システムに統合可能',
-            impact: '・言語の壁で困っている旅行者や留学生\n・多国籍チームで働くビジネスパーソン\n・外国語学習中の学生\nコミュニケーションの障壁をなくし、世界中の人々がより簡単につながれるようになります。',
-            gamePlan: 'フェーズ1: Amazon Transcribeで音声認識の実装\nフェーズ2: Amazon Bedrockで文脈理解と翻訳処理\nフェーズ3: Amazon Pollyで音声合成\nフェーズ4: React/Next.jsでフロントエンド構築\nフェーズ5: AWS Amplifyでデプロイ\nフェーズ6: ユーザーテストとフィードバック収集'
-        },
-        assistant: {
-            bigIdea: '特定業務に特化したAIアシスタントで、日々の作業を効率化します。自然な対話で複雑なタスクをシンプルにこなせるようになります。',
-            vision: '・自然言語での対話インターフェース\n・業務コンテキストの理解と記憶\n・ドキュメント検索と要約機能\n・タスクの自動化と提案\n・セキュアなデータ管理',
-            impact: '・繰り返し作業に時間を取られている社員\n・情報検索に時間がかかっているチーム\n・新入社員のオンボーディング支援\n生産性の向上と、より創造的な仕事への集中を実現します。',
-            gamePlan: 'フェーズ1: Amazon Bedrockで対話エンジン構築\nフェーズ2: Amazon Kendraでナレッジベース構築\nフェーズ3: AWS Lambdaでバックエンド処理\nフェーズ4: Amazon DynamoDBでデータ管理\nフェーズ5: フロントエンドUI開発\nフェーズ6: テストと改善'
-        },
-        analyzer: {
-            bigIdea: 'AIでデータ分析を民主化し、誰でも簡単にインサイトを得られるツールを作ります。専門知識がなくても、自然言語で質問するだけでデータを理解できます。',
-            vision: '・自然言語でのデータクエリ\n・自動的なグラフ・チャート生成\n・トレンド分析と予測機能\n・レポート自動生成\n・複数データソースの統合',
-            impact: '・データ分析スキルを持たないビジネスユーザー\n・意思決定に時間がかかっている経営者\n・レポート作成に追われるアナリスト\nデータドリブンな意思決定を、すべての人に開放します。',
-            gamePlan: 'フェーズ1: Amazon Bedrockで自然言語処理\nフェーズ2: Amazon Athenaでデータクエリ\nフェーズ3: Amazon QuickSightで可視化\nフェーズ4: AWS Glueでデータ統合\nフェーズ5: ダッシュボードUI開発\nフェーズ6: セキュリティとアクセス管理'
-        },
-        generator: {
-            bigIdea: 'AIを活用したコンテンツ生成ツールで、クリエイティブな作業を加速します。アイデアから完成品まで、AIがサポートします。',
-            vision: '・テキスト/画像/コードの生成\n・ブランドガイドラインに沿った出力\n・複数バリエーションの提案\n・編集・微調整機能\n・チームコラボレーション',
-            impact: '・コンテンツ制作に時間がかかっているマーケター\n・クリエイティブなアイデアに行き詰まっているデザイナー\n・効率化を求める開発チーム\n創造性を解放し、より価値の高い仕事に集中できます。',
-            gamePlan: 'フェーズ1: Amazon Bedrockでテキスト生成\nフェーズ2: Amazon Titan Imageで画像生成\nフェーズ3: プロンプトテンプレート管理\nフェーズ4: バージョン管理とコラボ機能\nフェーズ5: フロントエンド開発\nフェーズ6: ワークフロー統合'
-        }
-    };
+    if (!problemChips) return;
 
-    if (templates[templateId]) {
-        const template = templates[templateId];
-        document.getElementById('big-idea').value = template.bigIdea;
-        document.getElementById('vision').value = template.vision;
-        document.getElementById('impact').value = template.impact;
-        document.getElementById('game-plan').value = template.gamePlan;
+    // Clear existing problems
+    problemChips.innerHTML = '';
+    state.selectedProblems = [];
 
-        updateCharCount('big-idea');
-        updateCharCount('vision');
-        updateCharCount('impact');
-        updateCharCount('game-plan');
+    // Get problems for this category
+    const problems = categoryProblems[category] || [];
 
-        state.formData.bigIdea = template.bigIdea;
-        state.formData.vision = template.vision;
-        state.formData.impact = template.impact;
-        state.formData.gamePlan = template.gamePlan;
+    if (problems.length === 0) {
+        problemHint.textContent = 'このカテゴリの課題はありません';
+        problemHint.classList.remove('hidden');
+        return;
     }
+
+    // Hide hint
+    problemHint.classList.add('hidden');
+
+    // Create problem chips
+    problems.forEach(problem => {
+        const chip = document.createElement('button');
+        chip.className = 'chip problem-chip';
+        chip.dataset.problem = problem.id;
+        chip.textContent = problem.label;
+        chip.addEventListener('click', () => {
+            chip.classList.toggle('selected');
+            if (chip.classList.contains('selected')) {
+                state.selectedProblems.push(problem.label);
+            } else {
+                state.selectedProblems = state.selectedProblems.filter(p => p !== problem.label);
+            }
+        });
+        problemChips.appendChild(chip);
+    });
+
+    // Add custom input option
+    const customChip = document.createElement('button');
+    customChip.className = 'chip problem-chip';
+    customChip.dataset.problem = 'custom';
+    customChip.textContent = '✏️ 自分で入力';
+    customChip.addEventListener('click', () => {
+        customChip.classList.toggle('selected');
+        document.getElementById('custom-problem').classList.toggle('hidden');
+    });
+    problemChips.appendChild(customChip);
 }
 
 // ===== Textarea Handling =====
@@ -262,6 +377,9 @@ function updateCharCount(id) {
 
 // ===== Navigation =====
 function goToStep(step) {
+    // Max 3 steps now
+    if (step < 1 || step > 3) return;
+
     if (step > state.currentStep && !validateCurrentStep()) {
         return;
     }
@@ -282,10 +400,6 @@ function goToStep(step) {
 
     state.currentStep = step;
     updateKiroMessage();
-
-    if (step === 3) {
-        updateTranslationPreview();
-    }
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -310,44 +424,171 @@ function updateKiroMessage() {
     }
 }
 
-function updateTranslationPreview() {
-    const preview = document.getElementById('translation-preview');
-    const bigIdea = document.getElementById('big-idea').value.trim();
+// ===== AI Idea Suggestion (with Streaming) =====
+async function generateAiSuggestion() {
+    const suggestionBtn = document.getElementById('ai-suggest-btn');
+    const suggestionResult = document.getElementById('ai-suggestion-result');
+    const suggestionContent = document.getElementById('ai-suggestion-content');
 
-    if (bigIdea) {
-        preview.textContent = bigIdea.substring(0, 200) + (bigIdea.length > 200 ? '...' : '');
-        preview.style.fontStyle = 'normal';
-    } else {
-        preview.textContent = '入力した内容がここに表示されます...';
-        preview.style.fontStyle = 'italic';
+    if (!suggestionBtn || !suggestionResult || !suggestionContent) {
+        showToast('AI提案機能が利用できません', 'error');
+        return;
+    }
+
+    // Prevent duplicate requests
+    if (suggestionBtn.disabled) {
+        return;
+    }
+
+    // Get selected categories and problems
+    const categories = state.selectedCategories.length > 0
+        ? state.selectedCategories.join(', ')
+        : '未選択';
+    const problems = state.selectedProblems.length > 0
+        ? state.selectedProblems.join(', ')
+        : '未選択';
+
+    // Show loading state and disable button
+    suggestionBtn.disabled = true;
+    suggestionBtn.innerHTML = '<span class="btn-loading">⏳ 生成中...</span>';
+    suggestionContent.textContent = '';
+    suggestionResult.classList.remove('hidden');
+
+    try {
+        const prompt = ideaSuggestionPrompt
+            .replace('{categories}', categories)
+            .replace('{problems}', problems);
+
+        // Use streaming API
+        await callBedrockAPIStreaming(prompt, (chunk) => {
+            // Update content in real-time as chunks arrive
+            suggestionContent.textContent += chunk;
+        });
+
+        // Track successful AI suggestion generation
+        trackEvent('ai_suggestion_generated');
+
+        showToast('アイデアを生成しました！');
+
+    } catch (error) {
+        console.error('AI suggestion error:', error);
+        showToast(`アイデア生成エラー: ${error.message}`, 'error');
+        suggestionResult.classList.add('hidden');
+    } finally {
+        suggestionBtn.disabled = false;
+        suggestionBtn.innerHTML = '✨ AIでアイデアを生成';
     }
 }
 
+function useSuggestion() {
+    const suggestionContent = document.getElementById('ai-suggestion-content');
+    if (!suggestionContent) return;
+
+    const suggestion = suggestionContent.textContent;
+
+    // Parse the Working Backwards format suggestion
+    // Section headers: プロジェクト名, ビッグアイデア, ビジョン, インパクト, 実装計画, 使用AWSサービス
+    const sections = {};
+    const sectionHeaders = ['プロジェクト名', 'ビッグアイデア', 'ビジョン', 'インパクト', '実装計画', '使用AWSサービス'];
+
+    let currentSection = null;
+    let currentContent = [];
+
+    const lines = suggestion.split('\n');
+
+    for (const line of lines) {
+        // Check if this line starts a new section
+        let foundHeader = null;
+        for (const header of sectionHeaders) {
+            if (line.startsWith(header + ':') || line.startsWith(header + '：')) {
+                foundHeader = header;
+                break;
+            }
+        }
+
+        if (foundHeader) {
+            // Save previous section content
+            if (currentSection) {
+                sections[currentSection] = currentContent.join('\n').trim();
+            }
+            // Start new section
+            currentSection = foundHeader;
+            // Get content after the header on the same line
+            const afterHeader = line.replace(new RegExp(`^${foundHeader}[:：]\\s*`), '').trim();
+            currentContent = afterHeader ? [afterHeader] : [];
+        } else if (currentSection) {
+            // Add line to current section
+            currentContent.push(line);
+        }
+    }
+    // Save last section
+    if (currentSection) {
+        sections[currentSection] = currentContent.join('\n').trim();
+    }
+
+    // Fill form fields with parsed sections
+    const fieldMappings = [
+        { section: 'ビッグアイデア', elementId: 'big-idea', stateKey: 'bigIdea' },
+        { section: 'ビジョン', elementId: 'vision', stateKey: 'vision' },
+        { section: 'インパクト', elementId: 'impact', stateKey: 'impact' },
+        { section: '実装計画', elementId: 'game-plan', stateKey: 'gamePlan' }
+    ];
+
+    for (const mapping of fieldMappings) {
+        const content = sections[mapping.section];
+        if (content) {
+            const element = document.getElementById(mapping.elementId);
+            if (element) {
+                element.value = content;
+                updateCharCount(mapping.elementId);
+                state.formData[mapping.stateKey] = content;
+            }
+        }
+    }
+
+    // Auto-fill team name with project name if available
+    if (sections['プロジェクト名']) {
+        const teamNameEl = document.getElementById('team-name');
+        if (teamNameEl) {
+            teamNameEl.value = sections['プロジェクト名'];
+            updateCharCount('team-name');
+            state.formData.teamName = sections['プロジェクト名'];
+        }
+    }
+
+    // Auto-select AWS services if available
+    if (sections['使用AWSサービス']) {
+        const awsServices = sections['使用AWSサービス'].split(/[,、]/).map(s => s.trim());
+        // Select matching service chips
+        document.querySelectorAll('.service-chip').forEach(chip => {
+            const serviceName = chip.dataset.service;
+            if (awsServices.some(s => s.includes(serviceName) || serviceName.includes(s))) {
+                if (!chip.classList.contains('selected')) {
+                    chip.click(); // This will also update the state
+                }
+            }
+        });
+    }
+
+    showToast('アイデアをフォームに反映しました！Step 2で編集してね！');
+    goToStep(2);
+}
+
 // ===== Translation =====
-async function translateAll() {
-    const lambdaUrl = document.getElementById('lambda-function-url').value.trim();
-    const accessKey = document.getElementById('aws-access-key').value.trim();
-    const secretKey = document.getElementById('aws-secret-key').value.trim();
-
-    if (!lambdaUrl) {
-        showToast('Lambda Function URLを入力してください', 'error');
-        return;
-    }
-    if (!accessKey || !secretKey) {
-        showToast('AWS認証情報を入力してください', 'error');
-        return;
-    }
-
+async function translateAndComplete() {
     const translateBtn = document.getElementById('translate-btn');
-    const btnText = translateBtn.querySelector('.btn-text');
-    const btnLoading = translateBtn.querySelector('.btn-loading');
+    const btnText = translateBtn?.querySelector('.btn-text');
+    const btnLoading = translateBtn?.querySelector('.btn-loading');
 
-    btnText.classList.add('hidden');
-    btnLoading.classList.remove('hidden');
-    translateBtn.disabled = true;
+    if (translateBtn) {
+        if (btnText) btnText.classList.add('hidden');
+        if (btnLoading) btnLoading.classList.remove('hidden');
+        translateBtn.disabled = true;
+    }
 
     try {
         const fields = [
+            { key: 'teamName', elementId: 'team-name', limit: 100 },
             { key: 'bigIdea', elementId: 'big-idea', limit: 500 },
             { key: 'vision', elementId: 'vision', limit: 1000 },
             { key: 'impact', elementId: 'impact', limit: 1000 },
@@ -355,29 +596,35 @@ async function translateAll() {
         ];
 
         for (const field of fields) {
-            const content = document.getElementById(field.elementId).value.trim();
+            const content = document.getElementById(field.elementId)?.value?.trim();
             if (content) {
                 const translated = await translateText(content, field.limit);
                 state.translatedData[field.key] = translated;
             }
         }
 
-        state.translatedData.teamName = document.getElementById('team-name').value.trim();
         state.translatedData.aiServices = state.selectedAiServices.join(', ');
         state.translatedData.otherServices = state.selectedOtherServices.join(', ');
 
         updateResults();
-        goToStep(4);
+        goToStep(3);
         showToast('翻訳完了！');
 
     } catch (error) {
         console.error('Translation error:', error);
         showToast(`翻訳エラー: ${error.message}`, 'error');
     } finally {
-        btnText.classList.remove('hidden');
-        btnLoading.classList.add('hidden');
-        translateBtn.disabled = false;
+        if (translateBtn) {
+            if (btnText) btnText.classList.remove('hidden');
+            if (btnLoading) btnLoading.classList.add('hidden');
+            translateBtn.disabled = false;
+        }
     }
+}
+
+// Keep translateAll as alias for backward compatibility
+async function translateAll() {
+    return translateAndComplete();
 }
 
 async function translateText(content, charLimit) {
@@ -389,12 +636,58 @@ async function translateText(content, charLimit) {
 }
 
 async function callBedrockAPI(prompt) {
-    const lambdaFunctionUrl = document.getElementById('lambda-function-url').value.trim();
-    const region = document.getElementById('bedrock-region').value;
-    const accessKeyId = document.getElementById('aws-access-key').value.trim();
-    const secretAccessKey = document.getElementById('aws-secret-key').value.trim();
-    const sessionToken = document.getElementById('aws-session-token').value.trim() || null;
+    const config = window.APP_CONFIG || {};
     const modelId = state.selectedModel;
+
+    // Check if using CloudFront API endpoint (Lambda@Edge handles SigV4)
+    if (config.apiEndpoint) {
+        const payload = {
+            modelId: modelId,
+            message: prompt
+        };
+
+        try {
+            const response = await fetch(config.apiEndpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (data.output) {
+                return data.output;
+            } else if (data.content && data.content[0]) {
+                return data.content[0].text;
+            } else if (data.message) {
+                return data.message;
+            } else if (typeof data === 'string') {
+                return data;
+            }
+
+            throw new Error('Unexpected response format from API');
+        } catch (error) {
+            if (error.message.includes('403')) {
+                throw new Error('認証エラー: Lambda@Edge署名に問題がある可能性があります。');
+            } else if (error.message.includes('404')) {
+                throw new Error('APIエンドポイントが見つかりません。');
+            }
+            throw error;
+        }
+    }
+
+    // Fallback: Use direct Lambda Function URL with SigV4 (for local testing)
+    const lambdaFunctionUrl = document.getElementById('lambda-function-url')?.value?.trim();
+    const region = document.getElementById('bedrock-region')?.value;
+    const accessKeyId = document.getElementById('aws-access-key')?.value?.trim();
+    const secretAccessKey = document.getElementById('aws-secret-key')?.value?.trim();
+    const sessionToken = document.getElementById('aws-session-token')?.value?.trim() || null;
 
     const client = new BedrockLambdaClient({
         functionUrl: lambdaFunctionUrl,
@@ -425,14 +718,132 @@ async function callBedrockAPI(prompt) {
         throw new Error('Unexpected response format from Lambda');
     } catch (error) {
         if (error.message.includes('403')) {
-            throw new Error('認証エラー: AWS認証情報を確認してください。Lambda Function URLのIAM認証設定も確認してください。');
+            throw new Error('認証エラー: AWS認証情報を確認してください。');
         } else if (error.message.includes('404')) {
-            throw new Error('Lambda Function URLが見つかりません。URLを確認してください。');
+            throw new Error('Lambda Function URLが見つかりません。');
         } else if (error.message.includes('CORS')) {
-            throw new Error('CORSエラー: Lambda Function URLのCORS設定を確認してください。');
+            throw new Error('CORSエラー: CORS設定を確認してください。');
         }
         throw error;
     }
+}
+
+// Streaming API call for AI suggestion
+async function callBedrockAPIStreaming(prompt, onChunk) {
+    const config = window.APP_CONFIG || {};
+    const modelId = state.selectedModel;
+
+    if (!config.apiEndpoint) {
+        throw new Error('API endpoint not configured');
+    }
+
+    const payload = {
+        modelId: modelId,
+        message: prompt,
+        stream: true
+    };
+
+    try {
+        const response = await fetch(config.apiEndpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.text();
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const contentType = response.headers.get('content-type');
+
+        // Handle SSE (Server-Sent Events) response with true streaming
+        if (contentType && contentType.includes('text/event-stream')) {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                // Decode the chunk and add to buffer
+                buffer += decoder.decode(value, { stream: true });
+
+                // Process complete SSE lines from buffer
+                const lines = buffer.split('\n');
+                // Keep the last incomplete line in buffer
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.slice(6));
+                            if (data.text) {
+                                onChunk(data.text);
+                            }
+                        } catch (e) {
+                            // Skip malformed JSON lines
+                        }
+                    }
+                }
+            }
+
+            // Process any remaining data in buffer
+            if (buffer.startsWith('data: ')) {
+                try {
+                    const data = JSON.parse(buffer.slice(6));
+                    if (data.text) {
+                        onChunk(data.text);
+                    }
+                } catch (e) {
+                    // Skip malformed JSON
+                }
+            }
+        } else {
+            // Fallback to regular JSON response
+            const data = await response.json();
+            if (data.output) {
+                onChunk(data.output);
+            }
+        }
+    } catch (error) {
+        if (error.message.includes('403')) {
+            throw new Error('認証エラー: Lambda@Edge署名に問題がある可能性があります。');
+        } else if (error.message.includes('404')) {
+            throw new Error('APIエンドポイントが見つかりません。');
+        }
+        throw error;
+    }
+}
+
+// ===== Analytics Tracking =====
+async function trackEvent(eventType) {
+    const config = window.APP_CONFIG || {};
+    if (!config.apiEndpoint) return;
+
+    // Replace /invoke with /track in the endpoint
+    const trackEndpoint = config.apiEndpoint.replace('/invoke', '/track');
+
+    try {
+        await fetch(trackEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ eventType }),
+        });
+    } catch (error) {
+        // Silently fail - analytics should not affect user experience
+        console.warn('Analytics tracking failed:', error);
+    }
+}
+
+function openContestPage() {
+    // Track the event
+    trackEvent('contest_page_opened');
+    // Open the contest page
+    window.open('https://builder.aws.com/connect/events/10000aideas', '_blank');
 }
 
 // ===== Results =====
