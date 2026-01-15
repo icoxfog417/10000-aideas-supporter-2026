@@ -325,17 +325,24 @@ function updateTranslationPreview() {
 
 // ===== Translation =====
 async function translateAll() {
-    const lambdaUrl = document.getElementById('lambda-function-url').value.trim();
-    const accessKey = document.getElementById('aws-access-key').value.trim();
-    const secretKey = document.getElementById('aws-secret-key').value.trim();
+    // Check if config is available (CloudFront API endpoint)
+    const config = window.APP_CONFIG || {};
+    const hasCloudFrontApi = config.apiEndpoint && !config.apiEndpoint.includes('__');
 
-    if (!lambdaUrl) {
-        showToast('Lambda Function URLを入力してください', 'error');
-        return;
-    }
-    if (!accessKey || !secretKey) {
-        showToast('AWS認証情報を入力してください', 'error');
-        return;
+    if (!hasCloudFrontApi) {
+        // Fallback mode - require manual input
+        const lambdaUrl = document.getElementById('lambda-function-url')?.value?.trim();
+        const accessKey = document.getElementById('aws-access-key')?.value?.trim();
+        const secretKey = document.getElementById('aws-secret-key')?.value?.trim();
+
+        if (!lambdaUrl) {
+            showToast('Lambda Function URLを入力してください', 'error');
+            return;
+        }
+        if (!accessKey || !secretKey) {
+            showToast('AWS認証情報を入力してください', 'error');
+            return;
+        }
     }
 
     const translateBtn = document.getElementById('translate-btn');
@@ -389,12 +396,58 @@ async function translateText(content, charLimit) {
 }
 
 async function callBedrockAPI(prompt) {
-    const lambdaFunctionUrl = document.getElementById('lambda-function-url').value.trim();
-    const region = document.getElementById('bedrock-region').value;
-    const accessKeyId = document.getElementById('aws-access-key').value.trim();
-    const secretAccessKey = document.getElementById('aws-secret-key').value.trim();
-    const sessionToken = document.getElementById('aws-session-token').value.trim() || null;
+    const config = window.APP_CONFIG || {};
     const modelId = state.selectedModel;
+
+    // Check if using CloudFront API endpoint (Lambda@Edge handles SigV4)
+    if (config.apiEndpoint) {
+        const payload = {
+            modelId: modelId,
+            message: prompt
+        };
+
+        try {
+            const response = await fetch(config.apiEndpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            if (data.output) {
+                return data.output;
+            } else if (data.content && data.content[0]) {
+                return data.content[0].text;
+            } else if (data.message) {
+                return data.message;
+            } else if (typeof data === 'string') {
+                return data;
+            }
+
+            throw new Error('Unexpected response format from API');
+        } catch (error) {
+            if (error.message.includes('403')) {
+                throw new Error('認証エラー: Lambda@Edge署名に問題がある可能性があります。');
+            } else if (error.message.includes('404')) {
+                throw new Error('APIエンドポイントが見つかりません。');
+            }
+            throw error;
+        }
+    }
+
+    // Fallback: Use direct Lambda Function URL with SigV4 (for local testing)
+    const lambdaFunctionUrl = document.getElementById('lambda-function-url')?.value?.trim();
+    const region = document.getElementById('bedrock-region')?.value;
+    const accessKeyId = document.getElementById('aws-access-key')?.value?.trim();
+    const secretAccessKey = document.getElementById('aws-secret-key')?.value?.trim();
+    const sessionToken = document.getElementById('aws-session-token')?.value?.trim() || null;
 
     const client = new BedrockLambdaClient({
         functionUrl: lambdaFunctionUrl,
@@ -425,11 +478,11 @@ async function callBedrockAPI(prompt) {
         throw new Error('Unexpected response format from Lambda');
     } catch (error) {
         if (error.message.includes('403')) {
-            throw new Error('認証エラー: AWS認証情報を確認してください。Lambda Function URLのIAM認証設定も確認してください。');
+            throw new Error('認証エラー: AWS認証情報を確認してください。');
         } else if (error.message.includes('404')) {
-            throw new Error('Lambda Function URLが見つかりません。URLを確認してください。');
+            throw new Error('Lambda Function URLが見つかりません。');
         } else if (error.message.includes('CORS')) {
-            throw new Error('CORSエラー: Lambda Function URLのCORS設定を確認してください。');
+            throw new Error('CORSエラー: CORS設定を確認してください。');
         }
         throw error;
     }

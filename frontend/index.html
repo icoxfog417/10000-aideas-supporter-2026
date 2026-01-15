@@ -216,9 +216,9 @@
         <!-- Step 3: Translation -->
         <section id="step3" class="form-section">
             <h2>🌐 英語に翻訳しよう！</h2>
-            <p class="section-desc">AWS認証情報を入力して翻訳ボタンを押してね（Amazon Bedrock使用）</p>
+            <p class="section-desc" id="step3-desc">AWS認証情報を入力して翻訳ボタンを押してね（Amazon Bedrock使用）</p>
 
-            <div class="api-settings">
+            <div class="api-settings" id="api-settings-form">
                 <div class="form-group">
                     <label for="lambda-function-url">Lambda Function URL</label>
                     <input type="text" id="lambda-function-url" placeholder="https://xxxxx.lambda-url.ap-northeast-1.on.aws/">
@@ -389,7 +389,27 @@
         </footer>
     </div>
 
+    <script src="config.js"></script>
     <script src="sigv4.js"></script>
     <script src="app.js"></script>
+    <script>
+        // Hide API settings form if CloudFront API is configured
+        document.addEventListener('DOMContentLoaded', function() {
+            const config = window.APP_CONFIG || {};
+            const hasCloudFrontApi = config.apiEndpoint && !config.apiEndpoint.includes('__');
+
+            if (hasCloudFrontApi) {
+                const apiSettingsForm = document.getElementById('api-settings-form');
+                const step3Desc = document.getElementById('step3-desc');
+
+                if (apiSettingsForm) {
+                    apiSettingsForm.style.display = 'none';
+                }
+                if (step3Desc) {
+                    step3Desc.textContent = '翻訳ボタンを押してね（Amazon Bedrock使用）';
+                }
+            }
+        });
+    </script>
 </body>
 </html>

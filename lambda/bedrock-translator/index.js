@@ -36,6 +36,22 @@ exports.handler = async (event) => {
         };
     }
 
+    // Validate CloudFront secret header (if configured)
+    const expectedSecret = process.env.CLOUDFRONT_SECRET_HEADER;
+    if (expectedSecret) {
+        const receivedSecret = event.headers?.["x-cloudfront-secret"];
+        if (receivedSecret !== expectedSecret) {
+            console.log("Unauthorized request: invalid or missing CloudFront secret");
+            return {
+                statusCode: 403,
+                headers: corsHeaders,
+                body: JSON.stringify({
+                    error: "Forbidden: Direct access not allowed",
+                }),
+            };
+        }
+    }
+
     try {
         // Parse request body
         const body =
