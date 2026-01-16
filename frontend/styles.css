@@ -437,6 +437,115 @@ body {
     color: var(--text-secondary);
 }
 
+/* ===== Press Release Style for AI Suggestions ===== */
+.suggestion-content.press-release {
+    white-space: normal;
+    padding: 0;
+    background: linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%);
+    border-radius: 0 0 var(--border-radius) var(--border-radius);
+}
+
+.press-release-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 30px;
+    text-align: center;
+}
+
+.press-release-header .project-name {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.press-release-header .big-idea {
+    font-size: 1.1rem;
+    opacity: 0.95;
+    line-height: 1.6;
+}
+
+.press-release-body {
+    padding: 30px;
+    color: #333;
+}
+
+.press-release-section {
+    margin-bottom: 25px;
+}
+
+.press-release-section:last-child {
+    margin-bottom: 0;
+}
+
+.press-release-section h5 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #667eea;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.press-release-section h5::before {
+    content: '';
+    width: 4px;
+    height: 18px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 2px;
+}
+
+.press-release-section p {
+    font-size: 1rem;
+    line-height: 1.8;
+    color: #444;
+}
+
+.press-release-section.vision-section {
+    background: linear-gradient(135deg, rgba(102,126,234,0.08) 0%, rgba(118,75,162,0.08) 100%);
+    padding: 20px;
+    border-radius: 10px;
+    border-left: 4px solid #667eea;
+}
+
+.press-release-section.impact-section {
+    background: linear-gradient(135deg, rgba(255,107,107,0.08) 0%, rgba(255,142,83,0.08) 100%);
+    padding: 20px;
+    border-radius: 10px;
+    border-left: 4px solid var(--primary-color);
+}
+
+.press-release-section.gameplan-section {
+    background: linear-gradient(135deg, rgba(78,205,196,0.08) 0%, rgba(107,203,119,0.08) 100%);
+    padding: 20px;
+    border-radius: 10px;
+    border-left: 4px solid var(--secondary-color);
+}
+
+.press-release-footer {
+    background: #f1f3f5;
+    padding: 20px 30px;
+    border-top: 1px solid #e9ecef;
+}
+
+.aws-services-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.aws-service-tag {
+    background: linear-gradient(135deg, #ff9900 0%, #ff6600 100%);
+    color: white;
+    padding: 5px 12px;
+    border-radius: 15px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
 .btn-use-suggestion {
     display: block;
     width: 100%;

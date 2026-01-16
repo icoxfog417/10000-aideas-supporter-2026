@@ -13,7 +13,8 @@ const state = {
         impact: '',
         gamePlan: ''
     },
-    translatedData: {}
+    translatedData: {},
+    rawSuggestionText: '' // Store raw AI suggestion text for form filling
 };
 
 // ===== Kiro Messages =====
@@ -85,6 +86,83 @@ Output format (in Japanese, with these exact section headers):
 使用AWSサービス: [comma-separated list of AWS services from the available services above]
 
 Only output in this exact format, no other explanations or bullet points.`;
+
+// ===== Format AI Suggestion as Press Release =====
+function formatSuggestionAsPressRelease(text) {
+    // Parse sections from the generated text
+    const sections = {};
+    const sectionHeaders = ['プロジェクト名', 'ビッグアイデア', 'ビジョン', 'インパクト', '実装計画', '使用AWSサービス'];
+
+    let currentSection = null;
+    let currentContent = [];
+
+    const lines = text.split('\n');
+
+    for (const line of lines) {
+        let foundHeader = null;
+        for (const header of sectionHeaders) {
+            if (line.startsWith(header + ':') || line.startsWith(header + '：')) {
+                foundHeader = header;
+                break;
+            }
+        }
+
+        if (foundHeader) {
+            if (currentSection) {
+                sections[currentSection] = currentContent.join('\n').trim();
+            }
+            currentSection = foundHeader;
+            const afterHeader = line.replace(new RegExp(`^${foundHeader}[:：]\\s*`), '').trim();
+            currentContent = afterHeader ? [afterHeader] : [];
+        } else if (currentSection) {
+            currentContent.push(line);
+        }
+    }
+    if (currentSection) {
+        sections[currentSection] = currentContent.join('\n').trim();
+    }
+
+    // Build Press Release HTML
+    const projectName = sections['プロジェクト名'] || 'AI Project';
+    const bigIdea = sections['ビッグアイデア'] || '';
+    const vision = sections['ビジョン'] || '';
+    const impact = sections['インパクト'] || '';
+    const gamePlan = sections['実装計画'] || '';
+    const awsServices = sections['使用AWSサービス'] || '';
+
+    // Generate AWS service tags
+    const serviceTags = awsServices
+        .split(/[,、]/)
+        .map(s => s.trim())
+        .filter(s => s)
+        .map(s => `<span class="aws-service-tag">${s}</span>`)
+        .join('');
+
+    return `
+        <div class="press-release-header">
+            <div class="project-name">${projectName}</div>
+            <div class="big-idea">${bigIdea}</div>
+        </div>
+        <div class="press-release-body">
+            <div class="press-release-section vision-section">
+                <h5>VISION</h5>
+                <p>${vision}</p>
+            </div>
+            <div class="press-release-section impact-section">
+                <h5>IMPACT</h5>
+                <p>${impact}</p>
+            </div>
+            <div class="press-release-section gameplan-section">
+                <h5>IMPLEMENTATION PLAN</h5>
+                <p>${gamePlan}</p>
+            </div>
+        </div>
+        <div class="press-release-footer">
+            <h5 style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1.5px; color: #ff9900; margin-bottom: 10px;">Powered by AWS</h5>
+            <div class="aws-services-list">${serviceTags}</div>
+        </div>
+    `;
+}
 
 // ===== Translation Prompt Template =====
 const translationPrompt = `You are a professional translator specializing in tech startup pitches and AWS hackathon submissions. Your task is to translate the following content from the source language to natural, professional English suitable for a tech competition submission.
@@ -452,7 +530,11 @@ async function generateAiSuggestion() {
     suggestionBtn.disabled = true;
     suggestionBtn.innerHTML = '<span class="btn-loading">⏳ 生成中...</span>';
     suggestionContent.textContent = '';
+    suggestionContent.classList.remove('press-release');
     suggestionResult.classList.remove('hidden');
+
+    // Reset raw text storage
+    state.rawSuggestionText = '';
 
     try {
         const prompt = ideaSuggestionPrompt
@@ -463,7 +545,13 @@ async function generateAiSuggestion() {
         await callBedrockAPIStreaming(prompt, (chunk) => {
             // Update content in real-time as chunks arrive
             suggestionContent.textContent += chunk;
+            state.rawSuggestionText += chunk;
         });
+
+        // Format as Press Release after streaming completes
+        const rawText = state.rawSuggestionText;
+        suggestionContent.innerHTML = formatSuggestionAsPressRelease(rawText);
+        suggestionContent.classList.add('press-release');
 
         // Track successful AI suggestion generation
         trackEvent('ai_suggestion_generated');
@@ -484,7 +572,8 @@ function useSuggestion() {
     const suggestionContent = document.getElementById('ai-suggestion-content');
     if (!suggestionContent) return;
 
-    const suggestion = suggestionContent.textContent;
+    // Use raw text from state (preserved before HTML formatting)
+    const suggestion = state.rawSuggestionText || suggestionContent.textContent;
 
     // Parse the Working Backwards format suggestion
     // Section headers: プロジェクト名, ビッグアイデア, ビジョン, インパクト, 実装計画, 使用AWSサービス
