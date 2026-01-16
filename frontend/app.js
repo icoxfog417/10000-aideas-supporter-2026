@@ -17,6 +17,58 @@ const state = {
     rawSuggestionText: '' // Store raw AI suggestion text for form filling
 };
 
+// ===== Countdown Timer =====
+// Deadline: PST 1/21 24:00 = UTC 1/22 08:00:00
+const CONTEST_DEADLINE = new Date('2025-01-22T08:00:00Z');
+
+function updateCountdown() {
+    const now = new Date();
+    const diff = CONTEST_DEADLINE - now;
+
+    const timerEl = document.getElementById('countdown-timer');
+    const daysEl = document.getElementById('countdown-days');
+    const hoursEl = document.getElementById('countdown-hours');
+    const minutesEl = document.getElementById('countdown-minutes');
+    const secondsEl = document.getElementById('countdown-seconds');
+
+    if (!timerEl || !daysEl || !hoursEl || !minutesEl || !secondsEl) return;
+
+    if (diff <= 0) {
+        // Deadline passed
+        daysEl.textContent = '0';
+        hoursEl.textContent = '00';
+        minutesEl.textContent = '00';
+        secondsEl.textContent = '00';
+        timerEl.classList.add('ended');
+        timerEl.classList.remove('urgent');
+        timerEl.querySelector('.countdown-label').textContent = '締切終了';
+        return;
+    }
+
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+    daysEl.textContent = days;
+    hoursEl.textContent = hours.toString().padStart(2, '0');
+    minutesEl.textContent = minutes.toString().padStart(2, '0');
+    secondsEl.textContent = seconds.toString().padStart(2, '0');
+
+    // Add urgent class when less than 24 hours remain
+    if (diff < 24 * 60 * 60 * 1000) {
+        timerEl.classList.add('urgent');
+    } else {
+        timerEl.classList.remove('urgent');
+    }
+}
+
+// Start countdown timer
+function initCountdown() {
+    updateCountdown();
+    setInterval(updateCountdown, 1000);
+}
+
 // ===== Kiro Messages =====
 const kiroMessages = {
     step1: [
@@ -257,6 +309,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeModelSelector();
     updateKiroMessage();
     loadAnalyticsStats();
+    initCountdown();
 });
 
 // ===== Load Analytics Stats =====
