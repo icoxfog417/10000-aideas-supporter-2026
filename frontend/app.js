@@ -99,9 +99,11 @@ function formatSuggestionAsPressRelease(text) {
     const lines = text.split('\n');
 
     for (const line of lines) {
+        // Trim to handle leading spaces from AI output
+        const trimmedLine = line.trim();
         let foundHeader = null;
         for (const header of sectionHeaders) {
-            if (line.startsWith(header + ':') || line.startsWith(header + '：')) {
+            if (trimmedLine.startsWith(header + ':') || trimmedLine.startsWith(header + '：')) {
                 foundHeader = header;
                 break;
             }
@@ -112,7 +114,7 @@ function formatSuggestionAsPressRelease(text) {
                 sections[currentSection] = currentContent.join('\n').trim();
             }
             currentSection = foundHeader;
-            const afterHeader = line.replace(new RegExp(`^${foundHeader}[:：]\\s*`), '').trim();
+            const afterHeader = trimmedLine.replace(new RegExp(`^${foundHeader}[:：]\\s*`), '').trim();
             currentContent = afterHeader ? [afterHeader] : [];
         } else if (currentSection) {
             currentContent.push(line);
@@ -586,10 +588,11 @@ function useSuggestion() {
     const lines = suggestion.split('\n');
 
     for (const line of lines) {
-        // Check if this line starts a new section
+        // Check if this line starts a new section (trim to handle leading spaces)
+        const trimmedLine = line.trim();
         let foundHeader = null;
         for (const header of sectionHeaders) {
-            if (line.startsWith(header + ':') || line.startsWith(header + '：')) {
+            if (trimmedLine.startsWith(header + ':') || trimmedLine.startsWith(header + '：')) {
                 foundHeader = header;
                 break;
             }
@@ -603,7 +606,7 @@ function useSuggestion() {
             // Start new section
             currentSection = foundHeader;
             // Get content after the header on the same line
-            const afterHeader = line.replace(new RegExp(`^${foundHeader}[:：]\\s*`), '').trim();
+            const afterHeader = trimmedLine.replace(new RegExp(`^${foundHeader}[:：]\\s*`), '').trim();
             currentContent = afterHeader ? [afterHeader] : [];
         } else if (currentSection) {
             // Add line to current section

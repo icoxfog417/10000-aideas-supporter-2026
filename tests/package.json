@@ -1,0 +1,16 @@
+{
+  "name": "tests",
+  "version": "1.0.0",
+  "description": "",
+  "main": "test-suggestion-parsing.js",
+  "scripts": {
+    "test": "node test-suggestion-parsing-unit.js",
+    "test:bedrock": "node test-suggestion-parsing.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.971.0"
+  }
+}
