@@ -19,7 +19,7 @@ const state = {
 
 // ===== Countdown Timer =====
 // Deadline: PST 1/21 24:00 = UTC 1/22 08:00:00
-const CONTEST_DEADLINE = new Date('2025-01-22T08:00:00Z');
+const CONTEST_DEADLINE = new Date('2026-01-22T08:00:00Z');
 
 function updateCountdown() {
     const now = new Date();
