@@ -7,12 +7,8 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import * as s3deploy from "aws-cdk-lib/aws-s3-deployment";
 import * as cr from "aws-cdk-lib/custom-resources";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
-import * as acm from "aws-cdk-lib/aws-certificatemanager";
 import { Construct } from "constructs";
 import * as path from "path";
-
-// Custom domain configuration
-const CUSTOM_DOMAIN = "aidea10000-contest-supporter.work";
 
 export class KiroTranslatorStack extends cdk.Stack {
     constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -41,14 +37,6 @@ export class KiroTranslatorStack extends cdk.Stack {
             partitionKey: { name: "eventType", type: dynamodb.AttributeType.STRING },
             billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
             removalPolicy: cdk.RemovalPolicy.DESTROY,
-        });
-
-        // ========================================
-        // ACM Certificate for Custom Domain (must be in us-east-1 for CloudFront)
-        // ========================================
-        const certificate = new acm.Certificate(this, "Certificate", {
-            domainName: CUSTOM_DOMAIN,
-            validation: acm.CertificateValidation.fromDns(),
         });
 
         // ========================================
@@ -192,9 +180,6 @@ export class KiroTranslatorStack extends cdk.Stack {
                 },
             ],
             priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
-            // Custom domain configuration
-            domainNames: [CUSTOM_DOMAIN],
-            certificate: certificate,
         });
 
         // ========================================
@@ -295,23 +280,13 @@ window.APP_CONFIG = {
         // Outputs
         // ========================================
         new cdk.CfnOutput(this, "WebsiteURL", {
-            value: `https://${CUSTOM_DOMAIN}`,
-            description: "Custom Domain Website URL",
-        });
-
-        new cdk.CfnOutput(this, "CloudFrontURL", {
             value: `https://${distribution.distributionDomainName}`,
-            description: "CloudFront Distribution URL (for CNAME target)",
+            description: "CloudFront Website URL",
         });
 
         new cdk.CfnOutput(this, "APIURL", {
-            value: `https://${CUSTOM_DOMAIN}/api/`,
+            value: `https://${distribution.distributionDomainName}/api/`,
             description: "API endpoint (via CloudFront + Lambda@Edge)",
-        });
-
-        new cdk.CfnOutput(this, "CloudflareCNAME", {
-            value: `Add CNAME record: ${CUSTOM_DOMAIN} -> ${distribution.distributionDomainName}`,
-            description: "CNAME record to add in Cloudflare",
         });
 
         new cdk.CfnOutput(this, "S3BucketName", {
