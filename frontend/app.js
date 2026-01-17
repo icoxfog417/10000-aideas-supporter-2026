@@ -577,8 +577,22 @@ async function generateAiSuggestion() {
     const categories = state.selectedCategories.length > 0
         ? state.selectedCategories.join(', ')
         : '未選択';
-    const problems = state.selectedProblems.length > 0
-        ? state.selectedProblems.join(', ')
+
+    // Build problems list including custom input if selected
+    let problemsList = [...state.selectedProblems];
+
+    // Check if custom input chip is selected and has content
+    const customChip = document.querySelector('.problem-chip[data-problem="custom"]');
+    const customProblemInput = document.getElementById('custom-problem');
+    if (customChip && customChip.classList.contains('selected') && customProblemInput) {
+        const customValue = customProblemInput.value.trim();
+        if (customValue) {
+            problemsList.push(customValue);
+        }
+    }
+
+    const problems = problemsList.length > 0
+        ? problemsList.join(', ')
         : '未選択';
 
     // Show loading state and disable button
