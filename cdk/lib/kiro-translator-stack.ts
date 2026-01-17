@@ -7,8 +7,12 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import * as s3deploy from "aws-cdk-lib/aws-s3-deployment";
 import * as cr from "aws-cdk-lib/custom-resources";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
+import * as acm from "aws-cdk-lib/aws-certificatemanager";
 import { Construct } from "constructs";
 import * as path from "path";
+
+// Custom domain configuration
+const CUSTOM_DOMAIN = "aidea10000-contest-supporter.work";
 
 export class KiroTranslatorStack extends cdk.Stack {
     constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -37,6 +41,14 @@ export class KiroTranslatorStack extends cdk.Stack {
             partitionKey: { name: "eventType", type: dynamodb.AttributeType.STRING },
             billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
             removalPolicy: cdk.RemovalPolicy.DESTROY,
+        });
+
+        // ========================================
+        // ACM Certificate for Custom Domain (must be in us-east-1 for CloudFront)
+        // ========================================
+        const certificate = new acm.Certificate(this, "Certificate", {
+            domainName: CUSTOM_DOMAIN,
+            validation: acm.CertificateValidation.fromDns(),
         });
 
         // ========================================
@@ -180,6 +192,9 @@ export class KiroTranslatorStack extends cdk.Stack {
                 },
             ],
             priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
+            // Custom domain configuration
+            domainNames: [CUSTOM_DOMAIN],
+            certificate: certificate,
         });
 
         // ========================================
